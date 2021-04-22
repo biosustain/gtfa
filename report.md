@@ -1,0 +1,68 @@
+# A generative statistical model implementing thermodynamic flux analysis
+
+This study proposes a new method for incorporating thermodynamic information
+into an analysis of a metabolic network. We create a joint generative
+statistical model of measurements of four kinds of quantity: metabolic fluxes,
+metabolite concentrations, enzyme concentrations and Gibbs free energies of
+reaction. These are treated as interconnected, allowing for more precise
+estimates than would be possible with independent analyses.
+
+# Generative model
+
+Fluxes are treated as determined by Gibbs free energies of reaction, enzyme
+concentrations and a latent parameter vector $b$, which can be interpreted as
+the amount of flux carried by each enzyme at steady state. The flux $v_{ij}$ of
+reaction $i$ in condition {j} is as follows:
+
+$$
+v_{ij} = \Delta_rG_i \cdot e_{ij} \cdot b_{ij}
+$$
+
+Gibbs free energies of reaction are treated as determined by metabolite
+concentrations and formation energies as follows:
+
+$$
+\Delta_rG' = S^T(\Delta_fG' + RT\ln c)
+$$
+
+Standard condition measurements of reaction gibbs free energies (as can be
+derived, for example, from the TECRDB database) and metabolic fluxes (as
+derived from fluxomics analysis) are represented using a standard linear
+regression model:
+
+\begin{align*}
+y_{\Delta_rG} &\sim N(\Delta_rG, \sigma_{\Delta_rG}) \\
+y_{v} &\sim N(v, \sigma_{v})
+\end{align*}
+
+Measurements of metabolite and enzyme concentrations, as derived from
+metabolomics and proteomics analyses, are represented using a lognormal
+generalised linear model:
+
+\begin{align*}
+y_{c} &\sim LN(\ln(c), \sigma_{c}) \\
+y_{e} &\sim LN(\ln(e), \sigma_{e})
+\end{align*}
+
+This model is generative in the sense that, given an assignment of values to
+the unknown parameters $\Delta_fG$, $c$, $e$, $b$, $\sigma_{\Delta_rG}$,
+$\sigma_{v}$, $\sigma_c$ and $\sigma_{e}$ it is possible to simulate new values
+for the measured quantities $y_{\Delta_rG}$, $y_v$, $y_c$ and $y_e$. The model
+therefore represents a theory as to how the observed data was generated. The
+theory can be tested both by comparing its predictions with real data and by
+assessing the plausibility of its parameters.
+
+## Contrast with traditional tfa
+
+Traditional thermodynamic flux analysis (TFA) seeks to improve analyses of
+metabolic networks by taking advantage of information about the thermodynamic
+properties of the chemical reactions involved. TFA has historically been
+carried out within a constraint-based framework according to which the flux
+profile of a biological system is predicted by optimising an objective function
+representing the system's goals, subject to constraints imposed by the
+available information. For example, according to the mass balance constraint,
+metabolic fluxes must leave the system in a steady state.
+
+In this framework thermodynamic information allows extra constraints to be
+imposed, representing the fact that the amount and direction of the flux a
+reaction carries is partly determined by its thermodynamic properties.
