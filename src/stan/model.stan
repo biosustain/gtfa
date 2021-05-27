@@ -26,9 +26,9 @@ data {
   vector<lower=0>[N_y_enzyme] y_enzyme;
   vector<lower=0>[N_y_metabolite] y_metabolite;
   vector[N_y_flux] y_flux;
-  real<lower=0> sigma_flux;
-  real<lower=0> sigma_metabolite;
-  real<lower=0> sigma_enzyme;
+  vector<lower=0>[N_y_flux] sigma_flux;
+  vector<lower=0>[N_y_metabolite] sigma_metabolite;
+  vector<lower=0>[N_y_enzyme] sigma_enzyme;
   // priors
   array[2] vector[N_metabolite] prior_dgf;
   array[2, N_condition] vector[N_b_free] prior_b_free;
