@@ -29,15 +29,6 @@ def generate_fake_measurements() -> pd.DataFrame:
     You will need to customise this function to make sure it matches the data
     generating process you want to simulate from.
 
-    :param param_values: a dictionary of true parameter values.
-
-    :param model_config: configuration for the true model. Must have keys
-    "stan_file" and "priors".
-
-    :param n: number of fake measurements to be generated.
-
-    :param x_stats: dictionary mapping names of covariate columns to lists
-    indicating the desired mean and standard deviation of the covariate column.
 
     """
     fake = pd.DataFrame(

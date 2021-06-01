@@ -17,21 +17,18 @@ class ModelConfiguration:
 
     :param stan_file: Path to a Stan program
 
-    :param stan_input_function: Function taking in a pd.DataFrame of
-    measurements and returning a dictionary that can be used as input to
-    cmdstanpy.CmdStanModel.sample.
-
-    :param infd_kwargs_function: Function taking in a pd.DataFrame of
-    measurements and returning a dictionary of keyword arguments to
-    arviz.from_cmdstanpy.
+    :param folder: Path to a folder containing files "measurements.csv",
+    "stoichiometry.csv" and "priors.csv"
 
     :param sample_kwargs: dictionary of keyword arguments to
     cmdstanpy.CmdStanModel.sample.
+    
+    :param likelihood: take measurements into account
 
     """
 
     name: str
     stan_file: str
-    stan_input_function: Callable[[pd.DataFrame], Dict]
-    infd_kwargs_function: Callable[[pd.DataFrame], Dict]
+    data_folder: str
     sample_kwargs: Dict
+    likelihood: bool
