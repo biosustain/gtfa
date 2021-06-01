@@ -12,7 +12,7 @@ def get_infd_kwargs(
     return dict(
         coords=get_coords(S, measurements),
         dims={
-            "b_free": ["b_free_enzyme"],
+            "b_free": ["condition", "b_free_enzyme"],
             "dgf": ["metabolite"],
         },
         save_warmup=sample_kwargs["save_warmup"],

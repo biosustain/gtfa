@@ -38,7 +38,7 @@ data {
   array[2, N_condition] vector[N_enzyme] prior_enzyme;
   array[2, N_condition] vector[N_metabolite] prior_metabolite;
   // config
-  array[N_condition] vector[N_b_bound] b_bound_guess;
+  array[N_condition] vector[N_b_bound] log_b_bound_guess;
   int<lower=0,upper=1> likelihood;
   real rel_tol;
   real function_tol;
@@ -60,12 +60,12 @@ parameters {
 transformed parameters {
   vector[N_metabolite] dgf = prior_dgf[1] + dgf_z .* prior_dgf[2];
   array[N_condition] vector[N_reaction] flux;
-  array[N_condition] vector[N_b_bound] b_bound;
+  array[N_condition] vector[N_b_bound] log_b_bound;
   for (c in 1:N_condition){
     int N_theta = rows(dgf) + rows(b_free[c]) + rows(drain[c]) + rows(enzyme[c]) + rows(metabolite[c]);
     vector[N_theta] theta = get_theta(dgf, b_free[c], drain[c], enzyme[c], metabolite[c]);
-    b_bound[c] = algebra_solver_newton(steady_state, b_bound_guess[c], theta, x_r, x_i, rel_tol, function_tol, max_num_steps);
-    flux[c] = get_flux(S, b_bound[c], theta, x_i);
+    log_b_bound[c] = algebra_solver_newton(steady_state, log_b_bound_guess[c], theta, x_r, x_i, rel_tol, function_tol, max_num_steps);
+    flux[c] = get_flux(S, exp(log_b_bound[c]), theta, x_i);
   }
 }
 model {

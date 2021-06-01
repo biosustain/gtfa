@@ -29,7 +29,6 @@ def generate_samples(study_name: str, model_configurations: List[ModelConfigurat
     for model_config in model_configurations:
         fit_name = f"{study_name}-{model_config.name}"
         print(f"Fitting model {fit_name}...")
-        loo_file = os.path.join(LOO_DIR, f"loo_{fit_name}.pkl")
         infd_file = os.path.join(INFD_DIR, f"infd_{fit_name}.ncdf")
         json_file = os.path.join(JSON_DIR, f"input_data_{fit_name}.json")
         priors = pd.read_csv(os.path.join(model_config.data_folder, "priors.csv"))
@@ -56,9 +55,3 @@ def generate_samples(study_name: str, model_configurations: List[ModelConfigurat
         infds[fit_name] = infd
         print(f"Writing inference data to {infd_file}")
         infd.to_netcdf(infd_file)
-        print(f"Writing psis-loo results to {loo_file}\n")
-        az.loo(infd, pointwise=True).to_pickle(loo_file)
-    if len(infds) > 1:
-        comparison = az.compare(infds)
-        print(f"Loo comparison:\n{comparison}")
-        comparison.to_csv(os.path.join(LOO_DIR, "loo_comparison.csv"))

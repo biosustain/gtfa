@@ -3,13 +3,14 @@
 from dataclasses import dataclass
 from typing import Dict, List
 from numpy.linalg import matrix_rank
+import numpy as np
 import pandas as pd
 
 from .util import codify
 
-REL_TOL = 1e-12
-FUNCTION_TOL = 1e-9
-MAX_NUM_STEPS = int(1e6)
+REL_TOL = 1e-13
+FUNCTION_TOL = 1e-11
+MAX_NUM_STEPS = int(1e5)
 
 @dataclass
 class IndPrior1d:
@@ -79,8 +80,8 @@ def get_coords(S: pd.DataFrame, measurements: pd.DataFrame):
         "reaction": list(S.columns),
         "metabolite": list(S.index),
         "enzyme": list(enzymes),
-        "b_free_enzyme": b_free_enzymes,
-        "b_bound_enzyme": b_bound_enzymes,
+        "b_free_enzyme": list(b_free_enzymes),
+        "b_bound_enzyme": list(b_bound_enzymes),
         "drain": list(drains),
         "condition": list(measurements["experiment_id"].unique()),
     }
@@ -110,10 +111,13 @@ def get_stan_input(
         else pd.DataFrame([])
     )
     coords = get_coords(S, measurements)
-    b_bound_guess = [[0 for _ in coords["b_bound_enzyme"]] for _ in coords["condition"]]
+    log_b_bound_guess = [
+        np.random.normal(-1, 1, len(coords["b_bound_enzyme"])).tolist()
+        for _ in coords["condition"]
+    ]
     prior_dgf = extract_prior_1d("dgf", priors, coords["metabolite"], -200, 200)
     prior_drain = extract_prior_2d("drain", priors, coords["drain"], coords["condition"], 0.4, 0.1)
-    prior_b_free = extract_prior_2d("b_free", priors, coords["b_free_enzyme"], coords["condition"], 1, 2)
+    prior_b_free = extract_prior_2d("b_free", priors, coords["b_free_enzyme"], coords["condition"], 0, 1)
     prior_enzyme = extract_prior_2d("enzyme", priors, coords["enzyme"], coords["condition"], 1, 0.1)
     prior_metabolite = extract_prior_2d("metabolite", priors, coords["metabolite"], coords["condition"], 1, 0.1)
     return {
@@ -145,7 +149,7 @@ def get_stan_input(
         "metabolite_y_metabolite": y_metabolite["target_id"].map(codify(coords["metabolite"])).values.tolist(),
         "condition_y_metabolite": y_metabolite["experiment_id"].map(codify(coords["condition"])).values.tolist(),
         "likelihood": int(likelihood),
-        "b_bound_guess": b_bound_guess,
+        "log_b_bound_guess": log_b_bound_guess,
         "prior_dgf": [prior_dgf.location.values.tolist(), prior_dgf.scale.values.tolist()],
         "prior_drain": [prior_drain.location.values.tolist(), prior_drain.scale.values.tolist()],
         "prior_b_free": [prior_b_free.location.values.tolist(), prior_b_free.scale.values.tolist()],
