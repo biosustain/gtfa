@@ -80,17 +80,17 @@ model {
     for (n in 1:N_y_enzyme){
       int c = condition_y_enzyme[n];
       int e = enzyme_y_enzyme[n];
-      y_enzyme[n] ~ lognormal(enzyme[c, e], sigma_enzyme);
+      y_enzyme[n] ~ lognormal(enzyme[c, e], sigma_enzyme[n]);
     }
     for (n in 1:N_y_metabolite){
       int c = condition_y_metabolite[n];
       int m = metabolite_y_metabolite[n];
-      y_metabolite[n] ~ lognormal(metabolite[c, m], sigma_metabolite);
+      y_metabolite[n] ~ lognormal(metabolite[c, m], sigma_metabolite[n]);
     }
     for (n in 1:N_y_flux){
       int c = condition_y_flux[n];
       int r = reaction_y_flux[n];
-      y_flux[n] ~ lognormal(flux[c, r], sigma_flux);
+      y_flux[n] ~ lognormal(flux[c, r], sigma_flux[n]);
     }
   }
 }
