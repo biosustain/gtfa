@@ -64,10 +64,6 @@ transformed parameters {
   for (c in 1:N_condition){
     int N_theta = rows(dgf) + rows(b_free[c]) + rows(drain[c]) + rows(enzyme[c]) + rows(metabolite[c]);
     vector[N_theta] theta = get_theta(dgf, b_free[c], drain[c], enzyme[c], metabolite[c]);
-    print(get_b(extract_b_free(theta, x_i),
-                exp(b_bound_guess[c]),
-                extract_ix_b_free(x_i),
-                extract_ix_b_bound(x_i)));
     b_bound[c] = algebra_solver_newton(steady_state, b_bound_guess[c], theta, x_r, x_i, rel_tol, function_tol, max_num_steps);
     flux[c] = get_flux(S, b_bound[c], theta, x_i);
   }
@@ -79,7 +75,6 @@ model {
     enzyme[c] ~ lognormal(prior_enzyme[1, c], prior_enzyme[2, c]);
     metabolite[c] ~ lognormal(prior_metabolite[1, c], prior_metabolite[2, c]);
     b_free[c] ~ lognormal(prior_b_free[1, c], prior_b_free[2, c]);
-    b_bound[c] ~ lognormal(0, 3);
   }
   if (likelihood == 1){
     for (n in 1:N_y_enzyme){
