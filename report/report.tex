@@ -1,4 +1,44 @@
-# A generative statistical model implementing thermodynamic flux analysis
+\documentclass[11pt]{article}
+
+\usepackage{sectsty}
+\usepackage{graphicx}
+\usepackage[english]{babel}
+\usepackage{csquotes}
+\usepackage[backend=biber]{biblatex}
+\usepackage{todonotes} % For taking notes while writing
+
+\usepackage{amsmath}
+
+
+% Margins
+\topmargin=-0.45in
+\evensidemargin=0in
+\oddsidemargin=0in
+\textwidth=6.5in
+\textheight=9.0in
+\headsep=0.25in
+
+\title{ Title}
+\author{ Author }
+\date{\today}
+
+
+\addbibresource{references.bib}
+
+\begin{document}
+	\maketitle	
+	\pagebreak
+	
+	% Optional TOC
+	% \tableofcontents
+	% \pagebreak
+
+\section{Abstract}
+
+\section{Introduction}
+\input{introduction}
+\section{Methods}	
+\subsection{A generative statistical model implementing thermodynamic flux analysis}
 
 This study proposes a new method for incorporating thermodynamic information
 into an analysis of a metabolic network. We create a joint generative
@@ -7,7 +47,7 @@ metabolite concentrations, enzyme concentrations and Gibbs free energies of
 reaction. These are treated as interconnected, allowing for more precise
 estimates than would be possible with independent analyses.
 
-# Generative model
+\subsection{Generative model}
 
 Fluxes are treated as determined by Gibbs free energies of reaction, enzyme
 concentrations and a latent parameter vector $b$, which can be interpreted as
@@ -31,8 +71,8 @@ derived from fluxomics analysis) are represented using a standard linear
 regression model:
 
 \begin{align*}
-y_{\Delta_rG} &\sim N(\Delta_rG, \sigma_{\Delta_rG}) \\
-y_{v} &\sim N(v, \sigma_{v})
+	y_{\Delta_rG} &\sim N(\Delta_rG, \sigma_{\Delta_rG}) \\
+	y_{v} &\sim N(v, \sigma_{v})
 \end{align*}
 
 Measurements of metabolite and enzyme concentrations, as derived from
@@ -40,8 +80,8 @@ metabolomics and proteomics analyses, are represented using a lognormal
 generalised linear model:
 
 \begin{align*}
-y_{c} &\sim LN(\ln(c), \sigma_{c}) \\
-y_{e} &\sim LN(\ln(e), \sigma_{e})
+	y_{c} & \sim LN(\ln(c), \sigma_{c}) \\
+	y_{e} & \sim LN(\ln(e), \sigma_{e})
 \end{align*}
 
 This model is generative in the sense that, given an assignment of values to
@@ -52,7 +92,7 @@ therefore represents a theory as to how the observed data was generated. The
 theory can be tested both by comparing its predictions with real data and by
 assessing the plausibility of its parameters.
 
-## Contrast with traditional tfa
+\subsection{Contrast with traditional tfa}
 
 Traditional thermodynamic flux analysis (TFA) seeks to improve analyses of
 metabolic networks by taking advantage of information about the thermodynamic
@@ -66,3 +106,13 @@ metabolic fluxes must leave the system in a steady state.
 In this framework thermodynamic information allows extra constraints to be
 imposed, representing the fact that the amount and direction of the flux a
 reaction carries is partly determined by its thermodynamic properties.
+
+\section{Results and discussion}
+
+
+\section{Conclusion}
+
+\printbibliography
+
+\end{document}
+
