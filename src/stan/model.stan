@@ -1,42 +1,101 @@
-/* A template for your custom Stan model */
 functions {
 #include custom_functions.stan
 }
 data {
-  int<lower=1> N;
-  int<lower=1> K;
-  matrix[N, K] x;
-  vector[N] y;
-  int<lower=1> N_test;
-  matrix[N_test, K] x_test;
-  vector[N_test] y_test;
-  vector[2] prior_a;
-  matrix[K, 2] prior_b;
-  vector[2] prior_sigma;
+  // network properties
+  int<lower=1> N_metabolite;
+  int<lower=1> N_drain;
+  int<lower=1> N_enzyme;
+  int<lower=1> N_reaction;
+  int<lower=1> N_b_free;
+  int<lower=1> N_b_bound;
+  matrix[N_metabolite, N_reaction] S;
+  array[N_b_bound] int<lower=1,upper=N_enzyme> ix_b_bound;
+  array[N_b_free] int<lower=1,upper=N_enzyme> ix_b_free;
+  array[N_reaction] int<lower=0,upper=N_enzyme> reaction_to_enzyme;  // zero if no enzyme
+  array[N_reaction] int<lower=0,upper=N_drain> reaction_to_drain;    // zero if no drain
+  // measurements
+  int<lower=1> N_condition;
+  int<lower=1> N_y_enzyme;
+  int<lower=1> N_y_metabolite;
+  int<lower=1> N_y_flux;
+  vector<lower=0>[N_y_enzyme] y_enzyme;
+  vector<lower=0>[N_y_enzyme] sigma_enzyme;
+  array[N_y_enzyme] int<lower=1,upper=N_enzyme> enzyme_y_enzyme;
+  array[N_y_enzyme] int<lower=1,upper=N_condition> condition_y_enzyme;
+  vector<lower=0>[N_y_metabolite] y_metabolite;
+  vector<lower=0>[N_y_metabolite] sigma_metabolite;
+  array[N_y_metabolite] int<lower=1,upper=N_metabolite> metabolite_y_metabolite;
+  array[N_y_metabolite] int<lower=1,upper=N_condition> condition_y_metabolite;
+  vector[N_y_flux] y_flux;
+  vector<lower=0>[N_y_flux] sigma_flux;
+  array[N_y_flux] int<lower=1,upper=N_reaction> reaction_y_flux;
+  array[N_y_flux] int<lower=1,upper=N_condition> condition_y_flux;
+  // priors
+  array[2] vector[N_metabolite] prior_dgf;
+  array[2, N_condition] vector[N_drain] prior_drain;
+  array[2, N_condition] vector[N_b_free] prior_b_free;
+  array[2, N_condition] vector[N_enzyme] prior_enzyme;
+  array[2, N_condition] vector[N_metabolite] prior_metabolite;
+  // config
+  array[N_condition] vector[N_b_bound] b_bound_guess;
   int<lower=0,upper=1> likelihood;
+  real rel_tol;
+  real function_tol;
+  int max_num_steps;
 }
 transformed data {
-  matrix[N, K] x_std = standardise_cols(x, col_means(x), col_sds(x));
-  matrix[N_test, K] x_test_std = standardise_cols(x_test, col_means(x), col_sds(x));
+  array[rows(S)*cols(S)] real x_r = to_array_1d(S);
+  array[4 + 2 * N_enzyme] int x_i =
+    append_array({N_metabolite, N_enzyme, N_reaction, N_b_free, N_b_bound},
+                 append_array(reaction_to_enzyme, append_array(reaction_to_drain, append_array(ix_b_free, ix_b_bound))));
 }
 parameters {
-  real a;
-  vector[K] b;
-  real<lower=0> sigma;
+  vector[N_metabolite] dgf_z;
+  array[N_condition] vector<lower=0>[N_b_free] b_free;
+  array[N_condition] vector<lower=0>[N_drain] drain;
+  array[N_condition] vector<lower=0>[N_enzyme] enzyme;
+  array[N_condition] vector<lower=0>[N_metabolite] metabolite;
+}
+transformed parameters {
+  vector[N_metabolite] dgf = prior_dgf[1] + dgf_z .* prior_dgf[2];
+  array[N_condition] vector[N_reaction] flux;
+  array[N_condition] vector[N_b_bound] b_bound;
+  for (c in 1:N_condition){
+    int N_theta = rows(dgf) + rows(b_free[c]) + rows(drain[c]) + rows(enzyme[c]) + rows(metabolite[c]);
+    vector[N_theta] theta = get_theta(dgf, b_free[c], drain[c], enzyme[c], metabolite[c]);
+    b_bound[c] = algebra_solver_newton(steady_state, b_bound_guess[c], theta, x_r, x_i, rel_tol, function_tol, max_num_steps);
+    flux[c] = get_flux(S, b_bound[c], theta, x_i);
+  }
 }
 model {
-  a ~ normal(prior_a[1], prior_a[2]);
-  b ~ normal(prior_b[,1], prior_b[,2]);
-  sigma ~ lognormal(prior_sigma[1], prior_sigma[2]);
-  if (likelihood){
-    y ~ normal_id_glm(x_std, a, b, sigma);
+  dgf_z ~ normal(0, 1);
+  for (c in 1:N_condition){
+    drain[c] ~ lognormal(prior_drain[1, c], prior_drain[2, c]);
+    enzyme[c] ~ lognormal(prior_enzyme[1, c], prior_enzyme[2, c]);
+    metabolite[c] ~ lognormal(prior_metabolite[1, c], prior_metabolite[2, c]);
+    b_free[c] ~ lognormal(prior_b_free[1, c], prior_b_free[2, c]);
+  }
+  if (likelihood == 1){
+    for (n in 1:N_y_enzyme){
+      int c = condition_y_enzyme[n];
+      int e = enzyme_y_enzyme[n];
+      y_enzyme[n] ~ lognormal(enzyme[c, e], sigma_enzyme[n]);
+    }
+    for (n in 1:N_y_metabolite){
+      int c = condition_y_metabolite[n];
+      int m = metabolite_y_metabolite[n];
+      y_metabolite[n] ~ lognormal(metabolite[c, m], sigma_metabolite[n]);
+    }
+    for (n in 1:N_y_flux){
+      int c = condition_y_flux[n];
+      int r = reaction_y_flux[n];
+      y_flux[n] ~ lognormal(flux[c, r], sigma_flux[n]);
+    }
   }
 }
 generated quantities {
-  vector[N_test] yrep;
-  vector[N_test] llik;
-  for (n in 1:N_test){
-    yrep[n] = normal_rng(a + x_test_std[n] * b, sigma);
-    llik[n] = normal_lpdf(y_test[n] | a + x_test_std[n] * b, sigma);
-  }
+  array[N_condition] vector[N_enzyme] dgr;
+  for (c in 1:N_condition) dgr[c] = get_dgr(S, dgf, metabolite[c]);
 }
+

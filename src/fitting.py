@@ -7,6 +7,8 @@ from cmdstanpy import CmdStanModel
 from cmdstanpy.utils import jsondump
 import pandas as pd
 from .model_configuration import ModelConfiguration
+from .pandas_to_cmdstanpy import get_stan_input
+from .cmdstanpy_to_arviz import get_infd_kwargs
 
 # Location of this file
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -18,11 +20,7 @@ INFD_DIR = os.path.join(HERE, "..", "results", "infd")
 JSON_DIR = os.path.join(HERE, "..", "results", "input_data_json")
 
 
-def generate_samples(
-    study_name: str,
-    measurements: pd.DataFrame,
-    model_configurations: List[ModelConfiguration],
-) -> None:
+def generate_samples(study_name: str, model_configurations: List[ModelConfiguration]) -> None:
     """Run cmdstanpy.CmdStanModel.sample, do diagnostics and save results.
 
     :param study_name: a string
@@ -34,7 +32,11 @@ def generate_samples(
         loo_file = os.path.join(LOO_DIR, f"loo_{fit_name}.pkl")
         infd_file = os.path.join(INFD_DIR, f"infd_{fit_name}.ncdf")
         json_file = os.path.join(JSON_DIR, f"input_data_{fit_name}.json")
-        stan_input = model_config.stan_input_function(measurements)
+        priors = pd.read_csv(os.path.join(model_config.data_folder, "priors.csv"))
+        measurements = pd.read_csv(os.path.join(model_config.data_folder, "measurements.csv"))
+        S = pd.read_csv(os.path.join(model_config.data_folder, "stoichiometry.csv"), index_col="metabolite")
+        likelihood = model_config.likelihood
+        stan_input = get_stan_input(measurements, S, priors, likelihood)
         print(f"Writing input data to {json_file}")
         jsondump(json_file, stan_input)
         model = CmdStanModel(
@@ -48,7 +50,7 @@ def generate_samples(
         )
         print(mcmc.diagnose().replace("\n\n", "\n"))
         infd = az.from_cmdstanpy(
-            mcmc, **model_config.infd_kwargs_function(measurements)
+            mcmc, **get_infd_kwargs(S, measurements, model_config.sample_kwargs)
         )
         print(az.summary(infd))
         infds[fit_name] = infd

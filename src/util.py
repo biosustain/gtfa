@@ -1,10 +1,14 @@
 """Some handy python functions."""
 
 
-from typing import Tuple, Dict
+from typing import Iterable, Tuple, Dict
 import numpy as np
 import pandas as pd
 from scipy.stats import norm
+
+
+def codify(l: Iterable[str]) -> Dict[str, int]:
+    return {l_i: i + 1 for i, l_i in enumerate(l)}
 
 
 def one_encode(s: pd.Series) -> pd.Series:

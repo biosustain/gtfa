@@ -22,8 +22,7 @@ def main():
     """Run the script."""
     now = datetime.now().strftime("%Y%m%d%H%M%S")
     study_name = f"real_study-{now}"
-    measurements = pd.read_csv(CSV_INPUT)
-    generate_samples(study_name, measurements, MODEL_CONFIGURATIONS)
+    generate_samples(study_name, MODEL_CONFIGURATIONS)
 
 
 if __name__ == "__main__":
