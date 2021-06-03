@@ -8,7 +8,7 @@ import pandas as pd
 
 from .util import codify
 
-REL_TOL = 1e-13
+REL_TOL = 1e-11
 FUNCTION_TOL = 1e-11
 MAX_NUM_STEPS = int(1e5)
 
@@ -70,10 +70,10 @@ def extract_prior_2d(
 
 
 def get_coords(S: pd.DataFrame, measurements: pd.DataFrame):
-    is_drain = S.abs().sum() == 1
+    is_transport = pd.Series(["transport" in r for r in S.columns], index=S.columns)
     N_b_bound = matrix_rank(S.T)
-    drains = is_drain.loc[is_drain].index
-    enzymes = is_drain.loc[~is_drain].index
+    transports = is_transport.loc[is_transport].index
+    enzymes = is_transport.loc[~is_transport].index
     b_bound_enzymes = enzymes[:N_b_bound]
     b_free_enzymes = enzymes[N_b_bound:]
     return {
@@ -82,7 +82,7 @@ def get_coords(S: pd.DataFrame, measurements: pd.DataFrame):
         "enzyme": list(enzymes),
         "b_free_enzyme": list(b_free_enzymes),
         "b_bound_enzyme": list(b_bound_enzymes),
-        "drain": list(drains),
+        "transport": list(transports),
         "condition": list(measurements["experiment_id"].unique()),
     }
 
@@ -116,13 +116,13 @@ def get_stan_input(
         for _ in coords["condition"]
     ]
     prior_dgf = extract_prior_1d("dgf", priors, coords["metabolite"], -200, 200)
-    prior_drain = extract_prior_2d("drain", priors, coords["drain"], coords["condition"], 0.4, 0.1)
+    prior_transport = extract_prior_2d("transport", priors, coords["transport"], coords["condition"], 0.4, 0.1)
     prior_b_free = extract_prior_2d("b_free", priors, coords["b_free_enzyme"], coords["condition"], 0, 1)
     prior_enzyme = extract_prior_2d("enzyme", priors, coords["enzyme"], coords["condition"], 1, 0.1)
     prior_metabolite = extract_prior_2d("metabolite", priors, coords["metabolite"], coords["condition"], 1, 0.1)
     return {
         "N_metabolite": S.shape[0],
-        "N_drain": len(coords["drain"]),
+        "N_transport": len(coords["transport"]),
         "N_enzyme": len(coords["enzyme"]),
         "N_reaction": S.shape[1],
         "N_b_free": len(coords["b_free_enzyme"]),
@@ -131,7 +131,7 @@ def get_stan_input(
         "ix_b_free": [codify(coords["enzyme"])[e] for e in coords["b_free_enzyme"]],
         "ix_b_bound": [codify(coords["enzyme"])[e] for e in coords["b_bound_enzyme"]],
         "reaction_to_enzyme": [codify(coords["enzyme"])[r] if r in coords["enzyme"] else 0 for r in coords["reaction"]],
-        "reaction_to_drain": [codify(coords["drain"])[r] if r in coords["drain"] else 0 for r in coords["reaction"]],
+        "reaction_to_transport": [codify(coords["transport"])[r] if r in coords["transport"] else 0 for r in coords["reaction"]],
         "N_condition": measurements["experiment_id"].nunique(),
         "N_y_enzyme": len(y_enzyme),
         "N_y_metabolite": len(y_metabolite),
@@ -151,7 +151,7 @@ def get_stan_input(
         "likelihood": int(likelihood),
         "log_b_bound_guess": log_b_bound_guess,
         "prior_dgf": [prior_dgf.location.values.tolist(), prior_dgf.scale.values.tolist()],
-        "prior_drain": [prior_drain.location.values.tolist(), prior_drain.scale.values.tolist()],
+        "prior_transport": [prior_transport.location.values.tolist(), prior_transport.scale.values.tolist()],
         "prior_b_free": [prior_b_free.location.values.tolist(), prior_b_free.scale.values.tolist()],
         "prior_enzyme": [prior_enzyme.location.values.tolist(), prior_enzyme.scale.values.tolist()],
         "prior_metabolite": [prior_metabolite.location.values.tolist(), prior_metabolite.scale.values.tolist()],
