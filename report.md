@@ -9,13 +9,16 @@ estimates than would be possible with independent analyses.
 
 # Generative model
 
-Fluxes are treated as determined by Gibbs free energies of reaction, enzyme
-concentrations and a latent parameter vector $b$, which can be interpreted as
-the amount of flux carried by each enzyme at steady state. The flux $v_{ij}$ of
-reaction $i$ in condition {j} is as follows:
+The system's fluxes are modelled as consisting of transport fluxes
+$v_{transport}$ and fluxes $v_{enzyme}$ of enzyme-catalysed
+reactions. Transport fluxes are treated as unknown model
+parameters. Enzyme-catalysed reactions are treated as determined by Gibbs free
+energies of reaction, enzyme concentrations and a latent parameter vector $b$,
+which can be interpreted as the amount of flux carried by each enzyme at steady
+state. The flux $v_{enzyme[ij]}$ of enzyme $i$ in condition $j$ is as follows:
 
 $$
-v_{ij} = \Delta_rG_i \cdot e_{ij} \cdot b_{ij}
+v_{enzyme[ij]} = -\Delta_rG_{reaction(i)} \cdot e_{ij} \cdot b_{ij}
 $$
 
 Gibbs free energies of reaction are treated as determined by metabolite
@@ -24,6 +27,11 @@ concentrations and formation energies as follows:
 $$
 \Delta_rG' = S^T(\Delta_fG' + RT\ln c)
 $$
+
+Since, by assumption the system is in a steady state, the unknown parameters
+must satisfy the algebraic constraint $Sv = \mathbf{0}$. This is achieved by
+fixing the values $\theta_{fixed}$ of $rank(S^T)$ many parameters so that they
+solve the equation $Sv(\theta_{fixed}) = \mathbf{0}$.
 
 Standard condition measurements of reaction gibbs free energies (as can be
 derived, for example, from the TECRDB database) and metabolic fluxes (as
