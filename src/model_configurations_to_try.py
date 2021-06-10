@@ -13,10 +13,9 @@ RAW_DATA_DIR = os.path.join(HERE, "..", "data", "raw")
 # Configure cmdstanpy.CmdStanModel.sample
 SAMPLE_KWARGS = dict(
     show_progress=True,
-    save_warmup=False,
-    fixed_param=True,
-    iter_sampling=1,
-    inits=0.01,
+    save_warmup=True,
+    iter_warmup=200,
+    iter_sampling=200,
 )
 
 # Configuration of model.stan with no A:B interaction

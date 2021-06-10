@@ -112,11 +112,11 @@ vector get_flux(matrix S, vector b_bound, vector theta, int[] x_i){
   return out;
 }
 
-vector steady_state(vector b_bound, vector theta, real[] x_r, int[] x_i){
+vector steady_state(vector log_b_bound, vector theta, real[] x_r, int[] x_i){
   /* Main function - returns the steady state value of the bound b
      parameters. */
 
   matrix[extract_N_metabolite(x_i), extract_N_enzyme(x_i)] S = extract_S(x_r, x_i);
-  array[rows(b_bound)] int ix_b_bound = extract_ix_b_bound(x_i);
-  return S * get_flux(S, exp(b_bound), theta, x_i);
+  array[rows(log_b_bound)] int ix_b_bound = extract_ix_b_bound(x_i);
+  return S * get_flux(S, exp(log_b_bound), theta, x_i);
 }

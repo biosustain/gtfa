@@ -4,7 +4,7 @@ functions {
 data {
   // network properties
   int<lower=1> N_metabolite;
-  int<lower=1> N_drain;
+  int<lower=1> N_transport;
   int<lower=1> N_enzyme;
   int<lower=1> N_reaction;
   int<lower=1> N_b_free;
@@ -13,7 +13,7 @@ data {
   array[N_b_bound] int<lower=1,upper=N_enzyme> ix_b_bound;
   array[N_b_free] int<lower=1,upper=N_enzyme> ix_b_free;
   array[N_reaction] int<lower=0,upper=N_enzyme> reaction_to_enzyme;  // zero if no enzyme, otherwise index
-  array[N_reaction] int<lower=0,upper=N_drain> reaction_to_drain;    // zero if no drain, otherwise index
+  array[N_reaction] int<lower=0,upper=N_transport> reaction_to_transport;    // zero if no drain, otheriwse index
   // measurements
   int<lower=1> N_condition;
   int<lower=1> N_y_enzyme;
@@ -33,12 +33,12 @@ data {
   array[N_y_flux] int<lower=1,upper=N_condition> condition_y_flux;
   // priors
   array[2] vector[N_metabolite] prior_dgf; //independent normal
-  array[2, N_condition] vector[N_drain] prior_drain;
+  array[2, N_condition] vector[N_transport] prior_transport;
   array[2, N_condition] vector[N_b_free] prior_b_free;
   array[2, N_condition] vector[N_enzyme] prior_enzyme;
   array[2, N_condition] vector[N_metabolite] prior_metabolite;
   // config
-  array[N_condition] vector[N_b_bound] b_bound_guess;
+  array[N_condition] vector[N_b_bound] log_b_bound_guess;
   int<lower=0,upper=1> likelihood;
   real rel_tol;
   real function_tol;
@@ -48,35 +48,35 @@ transformed data {
   array[rows(S)*cols(S)] real x_r = to_array_1d(S);
   array[4 + 2 * N_enzyme] int x_i =
     append_array({N_metabolite, N_enzyme, N_reaction, N_b_free, N_b_bound},
-                 append_array(reaction_to_enzyme, append_array(reaction_to_drain, append_array(ix_b_free, ix_b_bound))));
+                 append_array(reaction_to_enzyme, append_array(reaction_to_transport, append_array(ix_b_free, ix_b_bound))));
 }
 parameters {
   vector[N_metabolite] dgf_z;
   array[N_condition] vector<lower=0>[N_b_free] b_free;
-  array[N_condition] vector<lower=0>[N_drain] drain;
+  array[N_condition] vector[N_transport] transport;
   array[N_condition] vector<lower=0>[N_enzyme] enzyme;
   array[N_condition] vector<lower=0>[N_metabolite] metabolite;
 }
 transformed parameters {
   vector[N_metabolite] dgf = prior_dgf[1] + dgf_z .* prior_dgf[2];
   array[N_condition] vector[N_reaction] flux;
-  array[N_condition] vector[N_b_bound] b_bound;
+  array[N_condition] vector[N_b_bound] log_b_bound;
   for (c in 1:N_condition){
-    int N_theta = rows(dgf) + rows(b_free[c]) + rows(drain[c]) + rows(enzyme[c]) + rows(metabolite[c]);
-    vector[N_theta] theta = get_theta(dgf, b_free[c], drain[c], enzyme[c], metabolite[c]);
-    // Function, initial guess, control params
-    // Theta - vector of parameters
-    // x_r - array of real valued data variables. S.
-    // x_i - array of integer valued data variables
-    //
-    b_bound[c] = algebra_solver_newton(steady_state, b_bound_guess[c], theta, x_r, x_i, rel_tol, function_tol, max_num_steps);
-    flux[c] = get_flux(S, b_bound[c], theta, x_i);
+    int N_theta = rows(dgf) + rows(b_free[c]) + rows(transport[c]) + rows(enzyme[c]) + rows(metabolite[c]);
+    vector[N_theta] theta = get_theta(dgf, b_free[c], transport[c], enzyme[c], metabolite[c]);
+    log_b_bound[c] = algebra_solver_newton(steady_state, log_b_bound_guess[c], theta, x_r, x_i, rel_tol, function_tol, max_num_steps);
+    flux[c] = get_flux(S, exp(log_b_bound[c]), theta, x_i);
   }
 }
+// Function, initial guess, control params
+// Theta - vector of parameters
+// x_r - array of real valued data variables. S.
+// x_i - array of integer valued data variables
+//
 model {
   dgf_z ~ normal(0, 1);
   for (c in 1:N_condition){
-    drain[c] ~ lognormal(prior_drain[1, c], prior_drain[2, c]);
+    transport[c] ~ normal(prior_transport[1, c], prior_transport[2, c]);
     enzyme[c] ~ lognormal(prior_enzyme[1, c], prior_enzyme[2, c]);
     metabolite[c] ~ lognormal(prior_metabolite[1, c], prior_metabolite[2, c]);
     b_free[c] ~ lognormal(prior_b_free[1, c], prior_b_free[2, c]);
