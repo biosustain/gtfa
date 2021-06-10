@@ -12,8 +12,8 @@ data {
   matrix[N_metabolite, N_reaction] S;
   array[N_b_bound] int<lower=1,upper=N_enzyme> ix_b_bound;
   array[N_b_free] int<lower=1,upper=N_enzyme> ix_b_free;
-  array[N_reaction] int<lower=0,upper=N_enzyme> reaction_to_enzyme;  // zero if no enzyme
-  array[N_reaction] int<lower=0,upper=N_drain> reaction_to_drain;    // zero if no drain
+  array[N_reaction] int<lower=0,upper=N_enzyme> reaction_to_enzyme;  // zero if no enzyme, otherwise index
+  array[N_reaction] int<lower=0,upper=N_drain> reaction_to_drain;    // zero if no drain, otherwise index
   // measurements
   int<lower=1> N_condition;
   int<lower=1> N_y_enzyme;
@@ -32,7 +32,7 @@ data {
   array[N_y_flux] int<lower=1,upper=N_reaction> reaction_y_flux;
   array[N_y_flux] int<lower=1,upper=N_condition> condition_y_flux;
   // priors
-  array[2] vector[N_metabolite] prior_dgf;
+  array[2] vector[N_metabolite] prior_dgf; //independent normal
   array[2, N_condition] vector[N_drain] prior_drain;
   array[2, N_condition] vector[N_b_free] prior_b_free;
   array[2, N_condition] vector[N_enzyme] prior_enzyme;
@@ -64,6 +64,11 @@ transformed parameters {
   for (c in 1:N_condition){
     int N_theta = rows(dgf) + rows(b_free[c]) + rows(drain[c]) + rows(enzyme[c]) + rows(metabolite[c]);
     vector[N_theta] theta = get_theta(dgf, b_free[c], drain[c], enzyme[c], metabolite[c]);
+    // Function, initial guess, control params
+    // Theta - vector of parameters
+    // x_r - array of real valued data variables. S.
+    // x_i - array of integer valued data variables
+    //
     b_bound[c] = algebra_solver_newton(steady_state, b_bound_guess[c], theta, x_r, x_i, rel_tol, function_tol, max_num_steps);
     flux[c] = get_flux(S, b_bound[c], theta, x_i);
   }
