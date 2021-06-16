@@ -1,22 +1,15 @@
 """Define a list of ModelConfiguration objects called MODEL_CONFIGURATIONS."""
 
 import os
-from .util import get_99_pct_params_ln, get_99_pct_params_n
+
 from .model_configuration import ModelConfiguration
+from .pandas_to_cmdstanpy import SAMPLE_KWARGS
 
 
 # Location of this file
 HERE = os.path.dirname(os.path.abspath(__file__))
 
 RAW_DATA_DIR = os.path.join(HERE, "..", "data", "raw")
-
-# Configure cmdstanpy.CmdStanModel.sample
-SAMPLE_KWARGS = dict(
-    show_progress=True,
-    save_warmup=True,
-    iter_warmup=200,
-    iter_sampling=200,
-)
 
 # Configuration of model.stan with no A:B interaction
 TOY_PRIOR = ModelConfiguration(
