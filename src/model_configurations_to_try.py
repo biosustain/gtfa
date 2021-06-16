@@ -24,8 +24,8 @@ TOY_LIKELIHOOD = ModelConfiguration(
     stan_file=os.path.join(HERE, "stan", "model.stan"),
     data_folder=os.path.join(RAW_DATA_DIR, "toy_model"),
     sample_kwargs=SAMPLE_KWARGS,
-    likelihood=False
+    likelihood=True
 )
 
 # A list of model configurations to test
-MODEL_CONFIGURATIONS = [TOY_PRIOR, TOY_LIKELIHOOD]
+MODEL_CONFIGURATIONS = [TOY_LIKELIHOOD, TOY_PRIOR]

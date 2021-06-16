@@ -90,8 +90,8 @@ transformed data {
 parameters {
   vector[N_metabolite] dgf_z;
   array[N_condition] vector[N_transport] transport_z;
-  array[N_condition] vector<lower=0>[N_enzyme] enzyme;
   array[N_condition] vector<lower=0>[N_enzyme] b;
+  array[N_condition] vector<lower=0>[N_enzyme] enzyme;
 }
 transformed parameters {
   vector[N_metabolite] dgf = prior_dgf[1] + dgf_z .* prior_dgf[2];
@@ -119,7 +119,6 @@ model {
   dgf_z ~ std_normal();
   for (c in 1:N_condition){
     transport_z[c] ~ std_normal();
-    transport[c] ~ normal(prior_transport[1, c], prior_transport[2, c]);
     enzyme[c] ~ lognormal(prior_enzyme[1, c], prior_enzyme[2, c]);
     b[c] ~ lognormal(prior_b[1, c], prior_b[2, c]);
   }
