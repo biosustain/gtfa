@@ -2,15 +2,28 @@
 
 from dataclasses import dataclass
 from typing import Dict, List
-from numpy.linalg import matrix_rank
 import numpy as np
 import pandas as pd
 
 from .util import codify
 
-REL_TOL = 1e-11
-FUNCTION_TOL = 1e-11
-MAX_NUM_STEPS = int(1e5)
+REL_TOL = 1e-12
+FUNCTION_TOL = 1e-12
+MAX_NUM_STEPS = int(1e10)
+
+# Configure cmdstanpy.CmdStanModel.sample
+SAMPLE_KWARGS = dict(
+    chains=1,
+    show_progress=True,
+    iter_warmup=300,
+    iter_sampling=300,
+    inits=0,
+    save_warmup=True,
+    max_treedepth=12,
+    step_size=1e-12,
+    metric="dense",
+    refresh=1,
+)
 
 @dataclass
 class IndPrior1d:
@@ -71,19 +84,14 @@ def extract_prior_2d(
 
 def get_coords(S: pd.DataFrame, measurements: pd.DataFrame):
     is_transport = pd.Series(["transport" in r for r in S.columns], index=S.columns)
-    N_b_bound = matrix_rank(S.T)
     transports = is_transport.loc[is_transport].index
     enzymes = is_transport.loc[~is_transport].index
-    b_bound_enzymes = enzymes[:N_b_bound]
-    b_free_enzymes = enzymes[N_b_bound:]
     return {
         "reaction": list(S.columns),
         "metabolite": list(S.index),
         "enzyme": list(enzymes),
-        "b_free_enzyme": list(b_free_enzymes),
-        "b_bound_enzyme": list(b_bound_enzymes),
         "transport": list(transports),
-        "condition": list(measurements["experiment_id"].unique()),
+        "condition": list(measurements["condition_id"].unique()),
     }
 
 def get_stan_input(
@@ -103,58 +111,50 @@ def get_stan_input(
     measurements_by_type = dict(
         measurements.groupby("measurement_type").__iter__()
     )
-    y_metabolite = measurements_by_type["mic"]
-    y_flux = measurements_by_type["flux"]
-    y_enzyme = (
-        measurements_by_type["enzyme"]
-        if "enzyme" in measurements_by_type.keys()
-        else pd.DataFrame([])
-    )
+    for t in ["mic", "flux", "enzyme"]:
+        if t not in measurements_by_type.keys():
+            raise ValueError(f"No {t} measurements provided.")
     coords = get_coords(S, measurements)
-    log_b_bound_guess = [
-        np.random.normal(-1, 1, len(coords["b_bound_enzyme"])).tolist()
-        for _ in coords["condition"]
-    ]
+    log_metabolite_guess = pd.DataFrame(index=coords["condition"], columns=coords["metabolite"])
+    for _, row in measurements_by_type["mic"].iterrows():
+        condition, mic, y = row[["condition_id", "target_id", "measurement"]]
+        log_metabolite_guess.loc[condition, mic] = np.log(y)
     prior_dgf = extract_prior_1d("dgf", priors, coords["metabolite"], -200, 200)
-    prior_transport = extract_prior_2d("transport", priors, coords["transport"], coords["condition"], 0.4, 0.1)
-    prior_b_free = extract_prior_2d("b_free", priors, coords["b_free_enzyme"], coords["condition"], 0, 1)
+    prior_transport = extract_prior_2d("transport", priors, coords["transport"], coords["condition"], 0.4, 0.01)
+    prior_b = extract_prior_2d("b", priors, coords["enzyme"], coords["condition"], 0, 1)
     prior_enzyme = extract_prior_2d("enzyme", priors, coords["enzyme"], coords["condition"], 1, 0.1)
-    prior_metabolite = extract_prior_2d("metabolite", priors, coords["metabolite"], coords["condition"], 1, 0.1)
     return {
         "N_metabolite": S.shape[0],
         "N_transport": len(coords["transport"]),
         "N_enzyme": len(coords["enzyme"]),
         "N_reaction": S.shape[1],
-        "N_b_free": len(coords["b_free_enzyme"]),
-        "N_b_bound": len(coords["b_bound_enzyme"]),
         "S": S.values.tolist(),
-        "ix_b_free": [codify(coords["enzyme"])[e] for e in coords["b_free_enzyme"]],
-        "ix_b_bound": [codify(coords["enzyme"])[e] for e in coords["b_bound_enzyme"]],
         "reaction_to_enzyme": [codify(coords["enzyme"])[r] if r in coords["enzyme"] else 0 for r in coords["reaction"]],
         "reaction_to_transport": [codify(coords["transport"])[r] if r in coords["transport"] else 0 for r in coords["reaction"]],
-        "N_condition": measurements["experiment_id"].nunique(),
-        "N_y_enzyme": len(y_enzyme),
-        "N_y_metabolite": len(y_metabolite),
-        "N_y_flux": len(y_flux),
-        "y_flux": y_flux["measurement"].values.tolist(),
-        "sigma_flux": y_flux["measurement"].values.tolist(),
-        "reaction_y_flux": y_flux["target_id"].map(codify(coords["reaction"])).values.tolist(),
-        "condition_y_flux": y_flux["experiment_id"].map(codify(coords["condition"])).values.tolist(),
-        "y_enzyme": y_enzyme["measurement"].values.tolist(),
-        "sigma_enzyme": y_enzyme["measurement"].values.tolist(),
-        "enzyme_y_enzyme": y_enzyme["target_id"].map(codify(coords["enzyme"])).values.tolist(),
-        "condition_y_enzyme": y_enzyme["experiment_id"].map(codify(coords["condition"])).values.tolist(),
-        "y_metabolite": y_metabolite["measurement"].values.tolist(),
-        "sigma_metabolite": y_metabolite["measurement"].values.tolist(),
-        "metabolite_y_metabolite": y_metabolite["target_id"].map(codify(coords["metabolite"])).values.tolist(),
-        "condition_y_metabolite": y_metabolite["experiment_id"].map(codify(coords["condition"])).values.tolist(),
+        "enzyme_to_reaction": [codify(coords["reaction"])[r] for r in coords["reaction"] if r in coords["enzyme"]],
+        "transport_to_reaction": [codify(coords["reaction"])[r] for r in coords["reaction"] if r in coords["transport"]],
+        "N_condition": measurements["condition_id"].nunique(),
+        "N_y_enzyme": len(measurements_by_type["enzyme"]),
+        "N_y_metabolite": len(measurements_by_type["mic"]),
+        "N_y_flux": len(measurements_by_type["flux"]),
+        "y_flux": measurements_by_type["flux"]["measurement"].values.tolist(),
+        "sigma_flux": measurements_by_type["flux"]["measurement"].values.tolist(),
+        "reaction_y_flux": measurements_by_type["flux"]["target_id"].map(codify(coords["reaction"])).values.tolist(),
+        "condition_y_flux": measurements_by_type["flux"]["condition_id"].map(codify(coords["condition"])).values.tolist(),
+        "y_enzyme": measurements_by_type["enzyme"]["measurement"].values.tolist(),
+        "sigma_enzyme": measurements_by_type["enzyme"]["measurement"].values.tolist(),
+        "enzyme_y_enzyme": measurements_by_type["enzyme"]["target_id"].map(codify(coords["enzyme"])).values.tolist(),
+        "condition_y_enzyme": measurements_by_type["enzyme"]["condition_id"].map(codify(coords["condition"])).values.tolist(),
+        "y_metabolite": measurements_by_type["mic"]["measurement"].values.tolist(),
+        "sigma_metabolite": measurements_by_type["mic"]["measurement"].values.tolist(),
+        "metabolite_y_metabolite": measurements_by_type["mic"]["target_id"].map(codify(coords["metabolite"])).values.tolist(),
+        "condition_y_metabolite": measurements_by_type["mic"]["condition_id"].map(codify(coords["condition"])).values.tolist(),
         "likelihood": int(likelihood),
-        "log_b_bound_guess": log_b_bound_guess,
+        "log_metabolite_guess": log_metabolite_guess.values,
         "prior_dgf": [prior_dgf.location.values.tolist(), prior_dgf.scale.values.tolist()],
         "prior_transport": [prior_transport.location.values.tolist(), prior_transport.scale.values.tolist()],
-        "prior_b_free": [prior_b_free.location.values.tolist(), prior_b_free.scale.values.tolist()],
+        "prior_b": [prior_b.location.values.tolist(), prior_b.scale.values.tolist()],
         "prior_enzyme": [prior_enzyme.location.values.tolist(), prior_enzyme.scale.values.tolist()],
-        "prior_metabolite": [prior_metabolite.location.values.tolist(), prior_metabolite.scale.values.tolist()],
         "rel_tol": REL_TOL,
         "function_tol": FUNCTION_TOL,
         "max_num_steps": MAX_NUM_STEPS,
