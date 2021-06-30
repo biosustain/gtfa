@@ -20,38 +20,34 @@ INFD_DIR = os.path.join(HERE, "..", "results", "infd")
 JSON_DIR = os.path.join(HERE, "..", "results", "input_data_json")
 
 
-def generate_samples(study_name: str, model_configurations: List[ModelConfiguration]) -> None:
+def generate_samples(model_config: ModelConfiguration) -> None:
     """Run cmdstanpy.CmdStanModel.sample, do diagnostics and save results.
 
     :param study_name: a string
     """
-    infds = {}
-    for model_config in model_configurations:
-        fit_name = f"{study_name}-{model_config.name}"
-        print(f"Fitting model {fit_name}...")
-        infd_file = os.path.join(INFD_DIR, f"infd_{fit_name}.ncdf")
-        json_file = os.path.join(JSON_DIR, f"input_data_{fit_name}.json")
-        priors = pd.read_csv(os.path.join(model_config.data_folder, "priors.csv"))
-        measurements = pd.read_csv(os.path.join(model_config.data_folder, "measurements.csv"))
-        S = pd.read_csv(os.path.join(model_config.data_folder, "stoichiometry.csv"), index_col="metabolite")
-        likelihood = model_config.likelihood
-        stan_input = get_stan_input(measurements, S, priors, likelihood)
-        print(f"Writing input data to {json_file}")
-        jsondump(json_file, stan_input)
-        model = CmdStanModel(
-            model_name=fit_name, stan_file=model_config.stan_file
-        )
-        print(f"Writing csv files to {SAMPLES_DIR}...")
-        mcmc = model.sample(
-            data=stan_input,
-            output_dir=SAMPLES_DIR,
-            **model_config.sample_kwargs,
-        )
-        print(mcmc.diagnose().replace("\n\n", "\n"))
-        infd = az.from_cmdstanpy(
-            mcmc, **get_infd_kwargs(S, measurements, model_config.sample_kwargs)
-        )
-        print(az.summary(infd))
-        infds[fit_name] = infd
-        print(f"Writing inference data to {infd_file}")
-        infd.to_netcdf(infd_file)
+    print(f"Fitting model configuration {model_config.name}...")
+    infd_file = os.path.join(INFD_DIR, f"infd_{model_config.name}.nc")
+    json_file = os.path.join(JSON_DIR, f"input_data_{model_config.name}.json")
+    priors = pd.read_csv(os.path.join(model_config.data_folder, "priors.csv"))
+    measurements = pd.read_csv(os.path.join(model_config.data_folder, "measurements.csv"))
+    S = pd.read_csv(os.path.join(model_config.data_folder, "stoichiometry.csv"), index_col="metabolite")
+    likelihood = model_config.likelihood
+    stan_input = get_stan_input(measurements, S, priors, likelihood)
+    print(f"Writing input data to {json_file}")
+    jsondump(json_file, stan_input)
+    model = CmdStanModel(
+        model_name=model_config.name, stan_file=model_config.stan_file
+    )
+    print(f"Writing csv files to {SAMPLES_DIR}...")
+    mcmc = model.sample(
+        data=stan_input,
+        output_dir=SAMPLES_DIR,
+        **model_config.sample_kwargs,
+    )
+    print(mcmc.diagnose().replace("\n\n", "\n"))
+    infd = az.from_cmdstanpy(
+        mcmc, **get_infd_kwargs(S, measurements, model_config.sample_kwargs)
+    )
+    print(az.summary(infd))
+    print(f"Writing inference data to {infd_file}")
+    infd.to_netcdf(infd_file)
