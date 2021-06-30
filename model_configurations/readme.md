@@ -1,4 +1,4 @@
-This folder contains [toml](https://github.com/toml-lang/toml) files that represent 
+This folder contains [toml](https://github.com/toml-lang/toml) files that represent model/configuration combinations that you might want to run.
 
 See
 [here](https://github.com/biosustain/gtfa/blob/master/src/model_configuration.py)
