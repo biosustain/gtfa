@@ -3,26 +3,28 @@
 from datetime import datetime
 import os
 import pandas as pd
+from src.model_configuration import load_model_configuration
 
 from src.fitting import generate_samples
-from src.model_configurations_to_try import MODEL_CONFIGURATIONS
-
-# File where a prepared csv of measurements can be found
-CSV_INPUT = os.path.join("data", "prepared", "data_prepared.csv")
 
 # only display messages with at least this severity
 LOGGER_LEVEL = 40
 
-# Specify whether to use the measurement model. Set to false for priors-only
-# mode.
-LIKELIHOOD = True
+CONFIG_DIR = "model_configurations"
 
 
 def main():
     """Run the script."""
     now = datetime.now().strftime("%Y%m%d%H%M%S")
     study_name = f"real_study-{now}"
-    generate_samples(study_name, MODEL_CONFIGURATIONS)
+    config_files = [
+        os.path.join(CONFIG_DIR, f)
+        for f in os.listdir(CONFIG_DIR)
+        if f.endswith(".toml")
+    ]
+    for config_file in config_files:
+        model_config = load_model_configuration(config_file)
+        generate_samples(model_config)
 
 
 if __name__ == "__main__":

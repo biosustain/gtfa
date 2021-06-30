@@ -1,8 +1,10 @@
 """Definition of the ModelConfiguration class."""
 
+import os
 from dataclasses import dataclass
 from typing import Callable, Dict
 import pandas as pd
+import toml
 
 
 @dataclass
@@ -32,3 +34,25 @@ class ModelConfiguration:
     data_folder: str
     sample_kwargs: Dict
     likelihood: bool
+
+
+def load_model_configuration(path: str) -> ModelConfiguration:
+    d = toml.load(path)
+    mc = ModelConfiguration(
+        name=d["name"],
+        stan_file=d["stan_file"],
+        data_folder=d["data_folder"],
+        likelihood=d["likelihood"],
+        sample_kwargs=d["sample_kwargs"]
+    )
+    validate_model_configuration(mc)
+    return mc
+    
+
+def validate_model_configuration(mc: ModelConfiguration) -> None:
+    assert os.path.exists(mc.stan_file)
+    assert os.path.exists(mc.data_folder)
+    assert type(mc.name) is str
+    assert mc.name != ""
+    assert type(mc.likelihood) is bool
+    

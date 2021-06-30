@@ -11,20 +11,6 @@ REL_TOL = 1e-12
 FUNCTION_TOL = 1e-12
 MAX_NUM_STEPS = int(1e10)
 
-# Configure cmdstanpy.CmdStanModel.sample
-SAMPLE_KWARGS = dict(
-    chains=1,
-    show_progress=True,
-    iter_warmup=300,
-    iter_sampling=300,
-    inits=0,
-    save_warmup=True,
-    max_treedepth=12,
-    step_size=1e-12,
-    metric="dense",
-    refresh=1,
-)
-
 @dataclass
 class IndPrior1d:
     parameter_name: str

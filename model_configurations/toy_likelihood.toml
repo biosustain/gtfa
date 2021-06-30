@@ -1,0 +1,16 @@
+name = "toy_likelihood"
+stan_file = "src/stan/model.stan"
+data_folder = "data/raw/toy_model"
+likelihood = true
+
+[sample_kwargs]
+chains = 1
+show_progress = true
+iter_warmup = 300
+iter_sampling = 300
+inits = 0
+save_warmup = true
+max_treedepth = 12
+step_size = 1e-12
+metric = "dense"
+refresh = 1
