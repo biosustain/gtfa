@@ -7,10 +7,10 @@ mic,g6p,condition_2,1.1,0.1
 mic,f6p,condition_2,0.8,0.1 
 mic,g1p,condition_2,1.2,0.1 
 mic,f1p,condition_2,1.4,0.1 
-flux,C,condition_1,0.4,0.2
+flux,C,condition_1,1.4,0.2
 flux,E,condition_1,0.2,0.2
-flux,C,condition_2,0.4,0.2
-flux,E,condition_2,0.2,0.2
+flux,C,condition_2,1.4,0.2
+flux,E,condition_2,-0.2,0.2
 enzyme,A,condition_1,1,0.2
 enzyme,B,condition_1,1,0.2
 enzyme,C,condition_1,1,0.2

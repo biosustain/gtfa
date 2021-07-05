@@ -1,5 +1,5 @@
-metabolite,transport,A,B,C,D,E
-g6p,1,-1,0,0,-1,0
-g1p,0,1,-1,0,0,-1
-f1p,-1,0,1,-1,0,0
-f6p,0,0,0,1,1,1
+metabolite,transport_in,transport_out,A,B,C,D,E
+g6p,1,0,-1,0,0,-1,0
+g1p,0,0,1,-1,0,0,-1
+f1p,0,-1,0,1,-1,0,0
+f6p,0,0,0,0,1,1,1
