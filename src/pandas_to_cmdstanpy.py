@@ -4,12 +4,13 @@ from dataclasses import dataclass
 from typing import Dict, List
 import numpy as np
 import pandas as pd
+from scipy.linalg import null_space
 
-from .util import codify
+from .util import codify, rref
 
 REL_TOL = 1e-12
 FUNCTION_TOL = 1e-12
-MAX_NUM_STEPS = int(1e10)
+MAX_NUM_STEPS = int(1e9)
 
 @dataclass
 class IndPrior1d:
@@ -69,6 +70,9 @@ def extract_prior_2d(
 
 
 def get_coords(S: pd.DataFrame, measurements: pd.DataFrame):
+    NS = null_space(S).round(10)
+    _, ix_free_flux = rref(NS.T)
+    free_fluxes = S.columns[ix_free_flux]
     is_transport = pd.Series(["transport" in r for r in S.columns], index=S.columns)
     transports = is_transport.loc[is_transport].index
     enzymes = is_transport.loc[~is_transport].index
@@ -78,7 +82,12 @@ def get_coords(S: pd.DataFrame, measurements: pd.DataFrame):
         "enzyme": list(enzymes),
         "transport": list(transports),
         "condition": list(measurements["condition_id"].unique()),
+        "free_flux": list(free_fluxes),
+        "free_enzyme": list(f for f in free_fluxes if f in enzymes),
+        "free_transport": list(f for f in free_fluxes if f in transports),
+        "NS": NS.tolist(),
     }
+
 
 def get_stan_input(
     measurements: pd.DataFrame,
@@ -101,47 +110,47 @@ def get_stan_input(
         if t not in measurements_by_type.keys():
             raise ValueError(f"No {t} measurements provided.")
     coords = get_coords(S, measurements)
-    log_metabolite_guess = pd.DataFrame(index=coords["condition"], columns=coords["metabolite"])
-    for _, row in measurements_by_type["mic"].iterrows():
-        condition, mic, y = row[["condition_id", "target_id", "measurement"]]
-        log_metabolite_guess.loc[condition, mic] = np.log(y)
     prior_dgf = extract_prior_1d("dgf", priors, coords["metabolite"], -200, 200)
-    prior_transport = extract_prior_2d("transport", priors, coords["transport"], coords["condition"], 0.4, 0.01)
-    prior_b = extract_prior_2d("b", priors, coords["enzyme"], coords["condition"], 0, 1)
-    prior_enzyme = extract_prior_2d("enzyme", priors, coords["enzyme"], coords["condition"], 1, 0.1)
+    prior_transport_free = extract_prior_2d("transport", priors, coords["free_transport"], coords["condition"], 0.4, 0.01)
+    prior_b_free = extract_prior_2d("b", priors, coords["free_enzyme"], coords["condition"], 0, 2)
+    prior_enzyme_free = extract_prior_2d("enzyme", priors, coords["free_enzyme"], coords["condition"], 1, 0.1)
+    prior_log_metabolite = extract_prior_2d("metabolite", priors, coords["metabolite"], coords["condition"], 0, 2)
     return {
         "N_metabolite": S.shape[0],
         "N_transport": len(coords["transport"]),
         "N_enzyme": len(coords["enzyme"]),
         "N_reaction": S.shape[1],
+        "N_free_flux": len(coords["free_flux"]),
+        "N_free_enzyme": len(coords["free_enzyme"]),
+        "N_free_transport": len(coords["free_transport"]),
         "S": S.values.tolist(),
-        "reaction_to_enzyme": [codify(coords["enzyme"])[r] if r in coords["enzyme"] else 0 for r in coords["reaction"]],
-        "reaction_to_transport": [codify(coords["transport"])[r] if r in coords["transport"] else 0 for r in coords["reaction"]],
-        "enzyme_to_reaction": [codify(coords["reaction"])[r] for r in coords["reaction"] if r in coords["enzyme"]],
-        "transport_to_reaction": [codify(coords["reaction"])[r] for r in coords["reaction"] if r in coords["transport"]],
+        "NS": coords["NS"],
+        "ix_free_flux": [codify(coords["reaction"])[r] for r in coords["reaction"] if r in coords["free_flux"]],
+        "ix_free_enzyme": [codify(coords["free_flux"])[r] for r in coords["free_flux"] if r in coords["enzyme"]],
+        "ix_free_transport": [codify(coords["free_flux"])[r] for r in coords["free_flux"] if r in coords["transport"]],
+        # measurements
         "N_condition": measurements["condition_id"].nunique(),
         "N_y_enzyme": len(measurements_by_type["enzyme"]),
         "N_y_metabolite": len(measurements_by_type["mic"]),
         "N_y_flux": len(measurements_by_type["flux"]),
         "y_flux": measurements_by_type["flux"]["measurement"].values.tolist(),
-        "sigma_flux": measurements_by_type["flux"]["measurement"].values.tolist(),
+        "sigma_flux": measurements_by_type["flux"]["error_scale"].values.tolist(),
         "reaction_y_flux": measurements_by_type["flux"]["target_id"].map(codify(coords["reaction"])).values.tolist(),
         "condition_y_flux": measurements_by_type["flux"]["condition_id"].map(codify(coords["condition"])).values.tolist(),
         "y_enzyme": measurements_by_type["enzyme"]["measurement"].values.tolist(),
-        "sigma_enzyme": measurements_by_type["enzyme"]["measurement"].values.tolist(),
+        "sigma_enzyme": measurements_by_type["enzyme"]["error_scale"].values.tolist(),
         "enzyme_y_enzyme": measurements_by_type["enzyme"]["target_id"].map(codify(coords["enzyme"])).values.tolist(),
         "condition_y_enzyme": measurements_by_type["enzyme"]["condition_id"].map(codify(coords["condition"])).values.tolist(),
         "y_metabolite": measurements_by_type["mic"]["measurement"].values.tolist(),
-        "sigma_metabolite": measurements_by_type["mic"]["measurement"].values.tolist(),
+        "sigma_metabolite": measurements_by_type["mic"]["error_scale"].values.tolist(),
         "metabolite_y_metabolite": measurements_by_type["mic"]["target_id"].map(codify(coords["metabolite"])).values.tolist(),
         "condition_y_metabolite": measurements_by_type["mic"]["condition_id"].map(codify(coords["condition"])).values.tolist(),
-        "likelihood": int(likelihood),
-        "log_metabolite_guess": log_metabolite_guess.values,
+        # priors
         "prior_dgf": [prior_dgf.location.values.tolist(), prior_dgf.scale.values.tolist()],
-        "prior_transport": [prior_transport.location.values.tolist(), prior_transport.scale.values.tolist()],
-        "prior_b": [prior_b.location.values.tolist(), prior_b.scale.values.tolist()],
-        "prior_enzyme": [prior_enzyme.location.values.tolist(), prior_enzyme.scale.values.tolist()],
-        "rel_tol": REL_TOL,
-        "function_tol": FUNCTION_TOL,
-        "max_num_steps": MAX_NUM_STEPS,
+        "prior_transport_free": [prior_transport_free.location.values.tolist(), prior_transport_free.scale.values.tolist()],
+        "prior_enzyme_free": [prior_enzyme_free.location.values.tolist(), prior_enzyme_free.scale.values.tolist()],
+        "prior_b_free": [prior_b_free.location.values.tolist(), prior_b_free.scale.values.tolist()],
+        "prior_log_metabolite": [prior_log_metabolite.location.values.tolist(), prior_log_metabolite.scale.values.tolist()],
+        # config
+        "likelihood": int(likelihood),
     }
