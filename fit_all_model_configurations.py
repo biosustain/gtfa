@@ -24,7 +24,8 @@ def main():
     ]
     for config_file in config_files:
         model_config = load_model_configuration(config_file)
-        generate_samples(model_config)
+        if model_config.run:
+            generate_samples(model_config)
 
 
 if __name__ == "__main__":
