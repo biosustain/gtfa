@@ -149,6 +149,7 @@ def get_free_fluxes(S: np.ndarray):
     """
     nrows, ncols = S.shape
     rr_mat, jb = rref(S)
+    assert all([x == y for x,y in zip(jb, sorted(jb))]), "Dealing with column rearrangements is not yet implemented"
     # TODO: understand the rref form alg enough to not have to do this
     fixed_fluxes = np.full(ncols, False)
     for i in range(nrows):
