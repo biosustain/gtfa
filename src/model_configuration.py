@@ -27,6 +27,8 @@ class ModelConfiguration:
     
     :param likelihood: take measurements into account
 
+    :param run: run this config with the script `fit_all_model_configurations.py`
+
     """
 
     name: str
@@ -34,6 +36,7 @@ class ModelConfiguration:
     data_folder: str
     sample_kwargs: Dict
     likelihood: bool
+    run: bool = True
 
 
 def load_model_configuration(path: str) -> ModelConfiguration:
@@ -43,7 +46,8 @@ def load_model_configuration(path: str) -> ModelConfiguration:
         stan_file=d["stan_file"],
         data_folder=d["data_folder"],
         likelihood=d["likelihood"],
-        sample_kwargs=d["sample_kwargs"]
+        sample_kwargs=d["sample_kwargs"],
+        run=d["run"]
     )
     validate_model_configuration(mc)
     return mc
@@ -55,4 +59,5 @@ def validate_model_configuration(mc: ModelConfiguration) -> None:
     assert type(mc.name) is str
     assert mc.name != ""
     assert type(mc.likelihood) is bool
+    assert type(mc.run) is bool
     

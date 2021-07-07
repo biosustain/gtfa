@@ -45,8 +45,8 @@ def generate_samples(model_config: ModelConfiguration) -> None:
         **model_config.sample_kwargs,
     )
     print(mcmc.diagnose().replace("\n\n", "\n"))
-    infd = az.from_cmdstanpy(
-        mcmc, **get_infd_kwargs(S, measurements, model_config.sample_kwargs)
+    infd = az.from_cmdstan(
+        mcmc.runset.csv_files, **get_infd_kwargs(S, measurements, model_config.sample_kwargs)
     )
     print(az.summary(infd))
     print(f"Writing inference data to {infd_file}")
