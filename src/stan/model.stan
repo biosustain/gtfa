@@ -35,7 +35,7 @@ functions {
   }
   vector Sv(vector log_metabolite, vector theta, real[] x_r, int[] x_i){
     /* Multiply the stoichiometric matrix by the flux to get the rate of change
-       of compound concentrations. */ 
+       of compound concentrations. */
     matrix[extract_N_metabolite(x_i), extract_N_enzyme(x_i)] S = extract_S(x_r, x_i);
     return S * v(log_metabolite, theta, x_r, x_i);
   }
@@ -85,7 +85,7 @@ transformed data {
   array[3 + 3 * N_reaction] int x_i = get_x_i(N_metabolite, N_enzyme, N_reaction,
                                               reaction_to_enzyme, reaction_to_transport,
                                               enzyme_to_reaction, transport_to_reaction);
-                                     
+
 }
 parameters {
   vector[N_metabolite] dgf_z;

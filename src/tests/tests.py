@@ -6,7 +6,8 @@ import src.util as util
 def test_get_free_fluxes_solution_many():
     """ Test that the free and calculated functions satisfy the steady state equation"""
     total_rows = 20
-    total_cols = 20
+    total_cols = 100
+
     for nrows in range(3, total_rows):
         for ncols in range(nrows+1, total_cols):
             random_matrix = (scipy.sparse.rand(nrows, ncols, density=0.3, random_state=nrows+ncols).toarray() - 0.5) * 3
