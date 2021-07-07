@@ -11,6 +11,7 @@
 \usepackage{amsmath}
 
 
+
 % Margins
 \topmargin=-0.45in
 \evensidemargin=0in
@@ -44,7 +45,7 @@
 This study proposes a new method for incorporating thermodynamic information
 into an analysis of a metabolic network. We create a joint generative
 statistical model of measurements of four kinds of quantity: metabolic fluxes,
-metabolite concentrations, enzyme concentrations and Gibbs free energies of
+metabolite concentrations, enzyme concentrations and Gibbs energies of
 reaction. These are treated as interconnected, allowing for more precise
 estimates than would be possible with independent analyses.
 
@@ -58,16 +59,16 @@ energies of reaction, enzyme concentrations and a latent parameter vector $b$,
 which can be interpreted as the amount of flux carried by each enzyme at steady
 state. The flux $v_{enzyme[ij]}$ of enzyme $i$ in condition $j$ is as follows:
 
-$$
+\[
 v_{enzyme[ij]} = -\Delta_rG_{reaction(i)} \cdot e_{ij} \cdot b_{ij}
-$$
+\]
 
 Gibbs free energies of reaction are treated as determined by metabolite
 concentrations and formation energies as follows:
 
-$$
+\[
 \Delta_rG' = S^T(\Delta_fG' + RT\ln c)
-$$
+\]
 
 Since, by assumption the system is in a steady state, the unknown parameters
 must satisfy the algebraic constraint $Sv = \mathbf{0}$. This is achieved by

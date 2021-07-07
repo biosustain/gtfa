@@ -1,0 +1,194 @@
+\documentclass[11pt]{article}
+
+\usepackage{sectsty}
+\usepackage{graphicx}
+\usepackage[english]{babel}
+\usepackage{csquotes}
+\usepackage[backend=biber]{biblatex}
+\usepackage{todonotes} % For taking notes while writing
+
+\usepackage{gensymb} % For the degree command
+\usepackage{amsmath}
+\usepackage{wasysym}
+\usepackage{amsfonts}
+
+% Commands for standard symbols
+\newcommand{\dgf}{\Delta_fG}
+\newcommand{\sdgf}{\Delta_fG^{\degree}}
+\newcommand{\dgr}{\Delta_rG}
+\newcommand{\sdgr}{\Delta_rG^{\degree}}
+
+% Margins
+\topmargin=-0.45in
+\evensidemargin=0in
+\oddsidemargin=0in
+\textwidth=6.5in
+\textheight=9.0in
+\headsep=0.25in
+
+\title{ Generative Thermodynamic Metabolic Flux Analysis: masters thesis proposal}
+\author{ Jason Jooste }
+\date{\today}
+
+
+\addbibresource{bibliography.bib}
+
+\begin{document}
+	\maketitle	
+	\pagebreak
+
+\section{Introduction}
+
+	Thermodynamic constraints play a key role in many models, by limiting the range of possible metabolic fluxes to only
+	those that are thermodynamically feasible.
+	One key example is flux balance analysis, which has contributed considerably to the modelling of steady-state metabolism.
+	In this formulation, reactions are represented by the stoichiometric coefficients of their reactants and products,
+	usually in the compact form of a stoichiometric matrix $S$, with $m$ rows representing metabolites and $n$ columns
+	representing reactions.
+	The steady state assumption constrains the system of equations $S$ such that, for any flux vector $\textbf{v}\in R^n)$:
+	\begin{gather}
+		\label{eqn:steady-state}
+		0 = S\cdot \textbf{v} \\
+		v_{Min} \leq v_i \leq v_{Max}, {i=1,...,n}
+	\end{gather}
+	where $v_{Max}$ and $v_{Min}$ represent a somewhat arbitrary range of possible fluxes.
+	As metabolic networks almost exclusively consist of more reactions than metabolites, this system of equations is
+	underdetermined, and the left null space of $S$ represents the set of flux vectors $v$ that satisfy Equation \ref{eqn:steady-state}.
+	A single solution can be acquired by applying an objective function, or by systematically fixing fluxes within the network
+	until all degrees of freedom have been removed.
+
+	This approach, however, permits flux solutions that are thermodynamically impossible, which can be addressed by Thermodynamics-based Flux Analysis (TFA) \cite{HENRY_2007_tmfa,
+		vishnu_2021_multiTFA, Salvy_2018_pytfa}.
+	This approach introduces constrained parameter representing the thermodynamic properties of compounds with the standard definition of the Gibbs free energy of each reaction as the sum of the combined standard Gibbs energy of formation of its substrates and the log
+	ratio of its substrate concentrations
+	\begin{gather}
+		\label{eqn:dgr}
+		\dgr = S^T (\sdgf +  RT\ln c) \\
+		c \in \Omega_c \\
+		\sdgf \in \Omega_G
+	\end{gather}
+	and enforces $\dgr < 0$.
+
+	The standard Gibbs energy $\sdgr$ and $\sdgf$ have been calculated for many common metabolic reactions and compounds
+	respectively, but need to be estimated for many others.
+	$\Omega_c$ and $\Omega_G$ define ranges of feasible concentrations and $\sdgf$ to account for measurement and estimation uncertainty.
+	Metabolite concentration ranges can be obtained from metabolomics techniques or defined in the absence of concrete data with the
+	range of metabolite concentrations that are biologically feasible \cite{HENRY_2007_tmfa}. \\
+
+	Estimation of $\sdgf$ is more complex.
+	Some standard formation energies have been experimentally determined, while others
+	could be determined as a linear combination of known formation energies \cite{ALBERTY_1998_thermo_data} or the
+	group contribution method
+	\cite{Mavrovouniotis_1990_group_contribtuion, JANKOWSKI_2008_group_contribution}, which predicts formations energies
+	with a linear regression on counts of chemical moieties present in the compound.
+	These techniques were combined in \cite{noor_2013_equilibrator}.
+	$\Omega_G$ is then commonly assigned to the 95\% confidence interval of the $\sdgf$ estimates.
+	The accuracy of these estimates is, however, limited by a relatively small dataset of known standard
+	formation and reaction Gibbs energies.
+	This limited dataset also limits the coverage of the method, as some metabolic compounds contain chemical moieties
+	not present in the dataset of known compounds, and can thus not be estimated. \\
+
+	A further problem with the integration of thermodynamic information is the concordance between estimated thermodynamic
+	parameters, measured metabolite concentrations \cite{vishnu_problems_with_constraints} and fluxes.
+	It can be the case that TFA model with the above constraints is not able to find any viable thermodynamic configuration
+	with the given metabolite concentration $\Omega_c$ and standard formation energy $\Omega_G$ ranges.
+	In this case, constraints need to be relaxed until a solution from the model is possible.
+	\textcite{Salvy_2018_pytfa} implemented slack variables in their TFA package for exactly this purpose.
+	An alternative approach has been to constrain formation energy estimates based on the full confidence ellipsoid of
+	the formation energy estimate multivariate normal distribution, instead of only the marginal estimates
+	\cite{gollub_2021_prob_sampling, vishnu_2021_multiTFA}.
+	This probabilistically incorporates the dependence between feasible metabolite concentrations, for example, between ATP and ADP
+	which almost exclusively are on opposite sides of a reaction, reducing constraint problems \cite{vishnu_2021_multiTFA}.
+	A number of other causes for this behaviour have been suggested.
+	For example, substrate channelling, measurement bias and, relatedly,
+	correlations between metabolomics measurements could could all cause disagreements between measured values in current models\cite{gollub_2021_prob_sampling, vishnu_problems_with_constraints}.
+
+	We propose an alternative holistic approach to the estimation of these thermodynamic properties through the application
+	of a generative statistical model measurements of metabolite and enzyme concentrations and fluxes, with latent
+	parameters representing standard formation energies and enzyme catalytic activity.
+	This approach will allow for the improvement of standard formation energy estimates with the ever-growing
+	metabolomics, fluxomics and proteomics datasets, which we predict to be much more common in the future than
+	those from the time-consuming measurement of reaction equilibria.
+	It is also more likely to obtain metabolomics data of compounds containing exotic chemical moieties than specific experimental data, allowing prediction coverage to extend to a wider range of compounds.
+	A further aim is to predict structure influences on model quality, for example, by introducing parameters for measurement
+	bias, substrate channelling or adjustment for intracellular or compartment conditions.
+
+	\section{Methods}
+	For the estimation of thermodynamic parameters we propose a joint generative model for three types of measurements:
+	metabolic fluxes, metabolite concentrations and enzyme concentrations.
+	The model consists of a set of varied conditions $j$, each with different metabolite and enzyme concentrations and fluxes,
+	but with shared formation energies.
+	Fluxes $v$ are divided into transport $v_{\text{transport}}$ and internal $v_{\text{enzyme}}$ reactions, with all fluxes
+	satisfying Equation \ref{eqn:steady-state}.
+	The flux $v_{\text{enzyme}}[ij]$ of an enzyme reaction $i$ in condition $j$ is modelled as the product of $\Delta_rG'$,
+	the enzyme concentration $e_{ij}$ and a latent parameter $b_{ij}$ representing the amount of flux carried per
+	enzyme for a given change in the Gibbs free energy:
+	\[
+	v_{enzyme}[ij] = -\Delta_rG_{reaction(i)} \cdot e_{ij} \cdot b_{ij}.
+	\]
+	Gibbs energies of reaction are determined from standard formation energies and metabolite concentrations as in
+	Equation \ref{eqn:dgr}.
+	The system is assumed to be in a steady state and the unknown parameters
+	must therefore satisfy the algebraic constraint in Equation \ref{eqn:steady-state}.
+	The the steady state constraint is satisfied by fixing the values $\theta_{fixed}$ of $rank(S)$ and solving
+	algebraically for $Sv(\theta_{fixed}) = \mathbf{0}$. \\
+
+	Errors in flux measurements are assumed to belong to a standard normal distribution:
+	\begin{align*}
+		y_{v} &\sim N(\textbf{v}, \sigma_{v}).
+	\end{align*}
+	Errors in metabolite and enzyme concentration measurements, derived from proteomics and metabolomics assays, are
+	assumed to be lognormal:
+	\begin{align*}
+		y_{c} & \sim LN(\ln(\textbf{c}), \sigma_{c}) \\
+		y_{e} & \sim LN(\ln(\textbf{e}), \sigma_{e}).
+	\end{align*}
+
+	Informative priors can be applied to some parameters of the model:
+	\begin{itemize}
+		\item $\sdgf$ can be derived from the multivariate normal solution to the component contribution problem \cite{noor_2013_equilibrator}.
+		\item \textbf{c} can be derived from biologically feasible concentrations for compounds.
+		\item \textbf{e} can be derived from biologically feasible enzyme concentrations.
+	\end{itemize}
+
+	The model will be implemented in the programming language Stan \cite{stan} and the posterior will be approximated with
+	the Stan Hamiltonian Monte Carlo No-U-Turn method.
+
+	\section{Data}
+	The validity and behaviour of the model will first be tested with a number of toy models.
+	The toy models will represent a range of possible causes for disagreement between measurements and current
+	thermodynamic predictions:
+	\begin{itemize}
+		\item Substrate channelling, as demonstrated in \cite{gollub_2021_prob_sampling}.
+		\item Bias in metabolite and enzyme concentration measurements, for both across and within-condition effects. For
+		example, measurements made with the same sample or passed through the same pre-processing steps are likely to
+		be correlated.
+		\item Differences between cell environment and standard conditions (e.g. ion concentrations)
+	\end{itemize}
+	Additionally, a dataset of fluxomics, metabolomics and proteomics measurements for a range of knockouts in \textit{e.coli}
+	are available in \cite{kale} (Kale dataset?).
+
+	\section{Results}
+	The results of the analysis will consist of likelihood scores for various models on synthetic and real data,
+	as well as posterior parameter distributions.
+	With this information, we will be able to determine if any of the postulated sources truly contribute to current problems
+	with constraints.
+	Furthermore, we may be able to hypothesise specific cases of substrate channelling, as in \cite{gollub_2021_prob_sampling},
+	that could guide experimental validation.
+
+\printbibliography
+
+
+
+\begin{gather*}
+	\Delta_rG[j] = S^T\cdot (\Delta_fG^{\degree}+ RT\ln{\textbf{c}[j]})\\
+	v_{enzyme}[j] = \Delta_rG[j] \odot e[j] \odot b[j] \\
+	y_{v}[j] \sim N(\textbf{v}[j], \sigma_{v}) \\
+	y_{c}[j] \sim LN(\ln(\textbf{c}[j]), \sigma_{c}) \\
+	y_{e}[j] \sim LN(\ln(\textbf{e}[j]), \sigma_{e}) \\
+	b \in \mathbb [0,\inf)^r \\
+	c \in \mathbb{R}^m \\
+	\Delta_fG^{\degree} \in \mathbb{R}^r \\
+\end{gather*}
+\end{document}
+
