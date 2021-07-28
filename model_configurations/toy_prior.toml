@@ -1,14 +1,15 @@
 name = "toy_prior"
-stan_file = "src/stan/model_ff.stan"
+stan_file = "src/stan/model_neg_b.stan"
 data_folder = "data/raw/toy_model"
 likelihood = false
 run = true
 
 [sample_kwargs]
 chains = 2
+parallel_chains = 2
 show_progress = true
 iter_warmup = 1000
 iter_sampling = 1000
 max_treedepth = 12
-adapt_delta = 0.9
+adapt_delta = 0.99
 refresh = 1

@@ -3,6 +3,8 @@
 from datetime import datetime
 import os
 import pandas as pd
+
+import analyse_results
 from src.model_configuration import load_model_configuration
 
 from src.fitting import generate_samples
@@ -30,3 +32,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+    analyse_results.main()

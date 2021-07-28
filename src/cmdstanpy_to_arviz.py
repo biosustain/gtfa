@@ -19,8 +19,9 @@ def get_infd_kwargs(
             "dgf": ["metabolite"],
             "dgr": ["condition", "reaction"],
             "log_metabolite": ["condition", "metabolite"],
-            "b_free": ["condition", "free_enzyme"],
-            "enzyme_free": ["condition", "free_enzyme"],
+            "b": ["condition", "enzyme_names"],
+            "b_free": ["condition", "enzyme_free"],
+            "enzyme": ["condition", "enzyme_names"],
             "flux": ["condition", "reaction"]
         },
         save_warmup=save_warmup,
