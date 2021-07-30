@@ -50,8 +50,8 @@ def generate_samples(model_config: ModelConfiguration) -> None:
     print(mcmc.diagnose().replace("\n\n", "\n"))
     infd_kwargs = get_infd_kwargs(S, measurements, model_config.sample_kwargs)
     df = to_dataframe(mcmc, infd_kwargs["dims"], infd_kwargs["coords"])
-    dgr_scatter(df, False)
-    dgr_scatter(df, True)
+    dgr_scatter(df, 1)
+    dgr_scatter(df, 2)
     check_df(df, infd_kwargs["coords"], S)
     infd = az.from_cmdstan(
         mcmc.runset.csv_files, **infd_kwargs
@@ -61,14 +61,9 @@ def generate_samples(model_config: ModelConfiguration) -> None:
     print(f"Writing inference data to {infd_file}")
     infd.to_netcdf(infd_file)
 
-def dgr_scatter(df, remove_b):
+def dgr_scatter(df, chain):
     import matplotlib.pyplot as plt
-
-    if remove_b:
-        neg_b = (df[(0, "b", "condition_1")] < 0).any(axis=1)
-        axes = pd.plotting.scatter_matrix(df[(0, "dgr", "condition_1")].loc[~neg_b, "A":"E"])
-    else:
-        axes = pd.plotting.scatter_matrix(df[(0, "dgr", "condition_1")].loc[:, "A":"E"])
+    axes = pd.plotting.scatter_matrix(df[(0, "dgr", f"condition_{chain}")].loc[:, "A":"E"])
     for i in range(axes.shape[0]):
         for j in range(axes.shape[1]):
             if i == j:
@@ -81,12 +76,46 @@ def dgr_scatter(df, remove_b):
             ax.plot((-xabs_max, xabs_max), (0, 0), linestyle="--", linewidth=0.5, color="black")
             ax.set_xlim([-xabs_max, xabs_max])
             ax.set_ylim([-yabs_max, yabs_max])
-    plt.suptitle(str(remove_b))
+    plt.suptitle(f"Chain {chain}")
     plt.show()
 
 
+# def calc_things(b, e, log_met, flux_stan, dgr_stan, dgf_stan):
+#     R = 0.008314
+#     T = 298.15
+#     S = pd.read_csv("/home/jason/Documents/Uni/thesis/gtfa/data/raw/toy_model/stoichiometry.csv")
+#     S = S.set_index("metabolite")
+#     num_met, num_rxn = S.shape
+#     num_trans = 2
+#     transport_rxns = S.columns.str.contains("transport")
+#     s_mod = S.copy()
+#     s_mod.loc[:, ~transport_rxns] = s_mod.loc[:, ~transport_rxns] * b * e
+#
+#     s_gamma = S.T[~transport_rxns]
+#     s_gamma_mod = np.zeros((num_rxn, num_met + num_trans))
+#     s_gamma_mod[:num_trans, :num_trans] = np.identity(num_trans)
+#     s_gamma_mod[num_trans:, num_trans:] = s_gamma.to_numpy()
+#     s_total = s_mod @ s_gamma_mod
+#     import src.util as util
+#     free, transform = util.get_free_fluxes(s_total.to_numpy())
+#     # rhs
+#     free_x = log_met[2:]
+#     rhs = -s_total.loc[:, free].to_numpy() @ free_x.to_numpy()
+#     fixed_x = np.linalg.solve(s_total.loc[:, ~free], rhs)
+#     all_x = np.zeros(s_total.shape[1])
+#     all_x[free] = free_x
+#     all_x[~free] = fixed_x
+#     trans_x = all_x[:num_trans]
+#     therm_x = all_x[num_trans:]
+#     dgr = S.T @ therm_x
+#     fluxes = np.zeros(num_rxn)
+#     fluxes[transport_rxns] = trans_x
+#     fluxes[~transport_rxns] = dgr[~transport_rxns] * b * e
+#     conc_change = S @ fluxes
+#     print(conc_change)
 
-def check_df(df, coords, S, eps=1e-1):
+
+def check_df(df, coords, S, eps=1e-2):
     """
     Check the samples for consistency
     :param df: pandas df from to_dataframe
@@ -104,7 +133,6 @@ def check_df(df, coords, S, eps=1e-1):
     for chain in chains:
         # The basics - b free and b match
         for condition in conditions:
-            b_free = df.loc[:, (chain, "b_free", condition)]
             bs = df.loc[:, (chain, "b", condition)]
             # Stan just doesn't return a param if it is size 0
             if "transport_free" in df.columns.unique(1):
@@ -112,8 +140,7 @@ def check_df(df, coords, S, eps=1e-1):
             else:
                 transport_free = []
             # The internal and transport free fluxes should be present in the b vector
-            assert (bs[coords["enzyme_free"]] == b_free).all(axis=None)
-            assert (bs[coords["transport_free"]] == transport_free).all(axis=None)
+            # assert (bs[coords["transport_free"]] == transport_free).all(axis=None)
             dgrs = df.loc[:, (chain, "dgr", condition)]
             dgfs = df.loc[:, (chain, "dgf", "shared")]
             log_conc = df.loc[:, (chain, "log_metabolite", condition)]

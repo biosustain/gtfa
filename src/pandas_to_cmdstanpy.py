@@ -70,31 +70,51 @@ def extract_prior_2d(
 
 
 def get_coords(S: pd.DataFrame, measurements: pd.DataFrame):
-    free_fluxes, free_to_fixed = get_free_fluxes(S.to_numpy())
-    ff_cols = S.columns[free_fluxes]
-    fixed_cols = S.columns.drop(ff_cols)
     is_transport = pd.Series(["transport" in r for r in S.columns], index=S.columns)
-    transports = is_transport.loc[is_transport].index
-    enzymes = is_transport.loc[~is_transport].index
+    transports = S.columns[is_transport]
+    enzymes = S.columns[~is_transport]
+    num_met, num_rxn = S.shape
+    num_trans = is_transport.sum()
+    s_gamma = S.T[~is_transport]
+    s_gamma_mod = np.zeros((num_rxn, num_met + num_trans))
+    s_gamma_mod[:num_trans, :num_trans] = np.identity(num_trans)
+    s_gamma_mod[num_trans:, num_trans:] = s_gamma.to_numpy()
+    s_total = S @ s_gamma_mod
+
+    free_x_ind, _ = get_free_fluxes(s_total.to_numpy())
+    x_names = pd.Series(transports.tolist() + S.index.tolist())
+    free_x_names = x_names[free_x_ind]
+    fixed_x_names = x_names[~free_x_ind]
+    # A list of indices for each free x
+    free_x = np.arange(1, len(free_x_ind)+1)[free_x_ind]
+    fixed_x = np.arange(1, len(free_x_ind)+1)[~free_x_ind]
+    # This is a vector with transport reactions first followed by the metabolites
+    transport_free_ind = free_x_ind[:num_trans]
+    transport_free = transports[transport_free_ind]
+    transport_fixed = transports[~transport_free_ind]
+    conc_free_ind = free_x_ind[num_trans:]
+    conc_free = S.index[conc_free_ind]
+    conc_fixed = S.index[~conc_free_ind]
     reaction_ind_map = codify(S.columns)
-    # metabolite_ind_map = codify(S.index)
-    # "reaction_ind": codify(S.columns)
-    # "metabolite_ind": codify(S.index)
+    met_ind_map = codify(S.index)
     return {
+        # Maps to stan indices
+        "reaction_ind": reaction_ind_map,
+        "metabolite_ind": met_ind_map,
         "reaction": list(S.columns),
         "metabolite": list(S.index),
-        "reaction_ind": codify(S.columns),
-        "metabolite_ind": codify(S.index),
+        "x_names": list(x_names),
+        "free_x_names": list(free_x_names),
+        "fixed_x_names": list(fixed_x_names),
         "enzyme_names": list(enzymes),
-        "enzyme_free": get_ordered_overlap(reaction_ind_map, [enzymes, ff_cols]),
-        "enzyme_fixed": get_ordered_overlap(reaction_ind_map, [enzymes, fixed_cols]),
         "transport": list(transports),
-        "transport_free": get_ordered_overlap(reaction_ind_map, [transports, ff_cols]),
-        "transport_fixed": get_ordered_overlap(reaction_ind_map, [transports, fixed_cols]),
+        "free_transport": list(transport_free),
+        "fixed_transport": list(transport_fixed),
+        "free_met_conc": list(conc_free),
+        "fixed_met_conc": list(conc_fixed),
         "condition": list(measurements["condition_id"].unique()),
-        "free_flux": list(ff_cols),
-        "fixed_flux": list(fixed_cols),
-        "free_to_fixed": free_to_fixed.tolist()
+        "free_x": list(free_x),
+        "fixed_x": list(fixed_x),
     }
 
 
@@ -119,35 +139,55 @@ def get_stan_input(
         if t not in measurements_by_type.keys():
             raise ValueError(f"No {t} measurements provided.")
     coords = get_coords(S, measurements)
-    prior_dgf = extract_prior_1d("dgf", priors, coords["metabolite"], -200, 200)
-    free_enzyme = get_name_ordered_overlap(coords, "reaction_ind", ["enzyme_names", "free_flux"])
-    free_transport = get_name_ordered_overlap(coords, "reaction_ind", ["transport", "free_flux"])
-    prior_transport_free = extract_prior_2d("transport", priors, free_transport, coords["condition"], 0.4,
-                                            0.01)
-    prior_b_free = extract_prior_2d("b", priors, free_enzyme, coords["condition"], 2, 2)
+    free_transport = get_name_ordered_overlap(coords, "reaction_ind", ["transport", "free_x_names"])
+    free_met_conc = get_name_ordered_overlap(coords, "metabolite_ind", ["metabolite", "free_x_names"])
+    prior_b = extract_prior_2d("b", priors, coords["enzyme_names"], coords["condition"], 2, 2)
     prior_enzyme = extract_prior_2d("enzyme_names", priors, coords["enzyme_names"], coords["condition"], 1, 0.1)
-    prior_log_metabolite = extract_prior_2d("metabolite", priors, coords["metabolite"], coords["condition"], 0, 2)
+    prior_met_conc_free = extract_prior_2d("metabolite", priors, free_met_conc, coords["condition"], 0, 2)
+    prior_transport_free = extract_prior_2d("transport", priors, free_transport, coords["condition"], 0.4, 0.01)
+    prior_dgf = extract_prior_1d("dgf", priors, coords["metabolite"], -200, 200)
     return {
+        # Sizes
         "N_metabolite": S.shape[0],
+        "N_reaction": S.shape[1],
         "N_transport": len(coords["transport"]),
         "N_enzyme": len(coords["enzyme_names"]),
-        "N_reaction": S.shape[1],
-        "N_free_flux": len(coords["free_flux"]),
-        "N_free_enzyme": len(free_enzyme),
-        "N_free_transport": len(free_transport),
+        "N_fixed_transport": len(coords["fixed_transport"]),
+        "N_free_transport": len(coords["free_transport"]),
+        "N_fixed_met_conc": len(coords["fixed_met_conc"]),
+        "N_free_met_conc": len(coords["free_met_conc"]),
+        "N_free_x": len(coords["free_x"]),
+        "N_fixed_x": len(coords["fixed_x"]),
+        "N_x": len(coords["fixed_x"] + coords["fixed_x"]),
+        # Network
         "S": S.values.tolist(),
         # Indexing
-        "free_to_fixed": coords["free_to_fixed"],
-        "ix_free_flux": make_index_map(coords, "reaction", ["free_flux"]),
-        "ix_free_enzyme": make_index_map(coords, "reaction", ["free_flux", "enzyme_names"]),
-        "ix_free_transport": make_index_map(coords, "reaction", ["free_flux", "transport"]),
-        "ix_fixed_flux": make_index_map(coords, "reaction", ["fixed_flux"]),
-        "ix_fixed_enzyme": make_index_map(coords, "reaction", ["fixed_flux", "enzyme_names"]),
-        "ix_fixed_transport": make_index_map(coords, "reaction", ["fixed_flux", "transport"]),
-        "ix_fixed_to_enzyme": make_index_map(coords, "enzyme_names", ["enzyme_names", "fixed_flux"]),
-        "ix_free_to_enzyme": make_index_map(coords, "enzyme_names", ["enzyme_names", "free_flux"]),
-        "ix_fixed_to_transport": make_index_map(coords, "transport", ["transport", "fixed_flux"]),
-        "ix_free_to_transport": make_index_map(coords, "transport", ["transport", "free_flux"]),
+        "ix_free_to_met": make_index_map(coords, "free_x_names", ["free_met_conc"]),
+        "ix_fixed_to_met": make_index_map(coords, "fixed_x_names", ["fixed_met_conc"]),
+        "ix_free_to_trans": make_index_map(coords, "transport", ["free_transport"]),
+        "ix_fixed_to_trans": make_index_map(coords, "transport", ["fixed_transport"]),
+        "ix_enzyme": make_index_map(coords, "reaction", ["enzyme_names"]),
+        "ix_transport": make_index_map(coords, "reaction", ["transport"]),
+        "ix_free": make_index_map(coords, "x_names", ["free_x_names"]),
+        "ix_fixed": make_index_map(coords, "x_names", ["fixed_x_names"]),
+        "ix_free_transport": make_index_map(coords, "reaction", ["transport", "free_x_names"]),
+        "ix_fixed_transport": make_index_map(coords, "reaction", ["transport", "fixed_x_names"]),
+        "ix_free_met_conc": make_index_map(coords, "metabolite", ["metabolite", "free_x_names"]),
+        "ix_fixed_met_conc": make_index_map(coords, "metabolite", ["metabolite", "fixed_x_names"]),
+
+
+
+        # "ix_free_enzyme": make_index_map(coords, "reaction", ["free_flux", "enzyme_names"]),
+        # "ix_free_transport": make_index_map(coords, "reaction", ["free_flux", "transport"]),
+        # "ix_fixed_flux": make_index_map(coords, "reaction", ["fixed_flux"]),
+        # "ix_fixed_enzyme": make_index_map(coords, "reaction", ["fixed_flux", "enzyme_names"]),
+        # "ix_fixed_transport": make_index_map(coords, "reaction", ["fixed_flux", "transport"]),
+        # "ix_fixed_to_enzyme": make_index_map(coords, "enzyme_names", ["enzyme_names", "fixed_flux"]),
+        # "ix_free_to_enzyme": make_index_map(coords, "enzyme_names", ["enzyme_names", "free_flux"]),
+        # "ix_fixed_to_transport": make_index_map(coords, "transport", ["transport", "fixed_flux"]),
+        # "ix_free_to_transport": make_index_map(coords, "transport", ["transport", "free_flux"]),
+
+
         # measurements
         "N_condition": measurements["condition_id"].nunique(),
         "N_y_enzyme": len(measurements_by_type["enzyme"]),
@@ -169,8 +209,8 @@ def get_stan_input(
         "prior_dgf": [prior_dgf.location.values.tolist(), prior_dgf.scale.values.tolist()],
         "prior_transport_free": [prior_transport_free.location.values.tolist(), prior_transport_free.scale.values.tolist()],
         "prior_enzyme": [prior_enzyme.location.values.tolist(), prior_enzyme.scale.values.tolist()],
-        "prior_b_free": [prior_b_free.location.values.tolist(), prior_b_free.scale.values.tolist()],
-        "prior_log_metabolite": [prior_log_metabolite.location.values.tolist(), prior_log_metabolite.scale.values.tolist()],
+        "prior_b": [prior_b.location.values.tolist(), prior_b.scale.values.tolist()],
+        "prior_free_met_conc": [prior_met_conc_free.location.values.tolist(), prior_met_conc_free.scale.values.tolist()],
         # config
         "likelihood": int(likelihood),
     }
