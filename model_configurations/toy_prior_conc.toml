@@ -2,7 +2,9 @@ name = "toy_prior_conc"
 stan_file = "src/stan/model_conc.stan"
 data_folder = "data/raw/toy_model"
 likelihood = false
-run = true
+analyse = true
+devel = false
+save_plot = true
 
 [sample_kwargs]
 chains = 2
