@@ -1,5 +1,5 @@
 """Definition of the ModelConfiguration class."""
-
+import logging
 import os
 from dataclasses import dataclass
 from pathlib import Path
@@ -8,6 +8,7 @@ import pandas as pd
 import toml
 
 
+logger = logging.getLogger(__name__)
 @dataclass
 class ModelConfiguration:
     """Container for a path to a Stan model and some configuration.
@@ -52,6 +53,11 @@ class ModelConfiguration:
 
 def load_model_configuration(path: str) -> ModelConfiguration:
     d = toml.load(path)
+    # Warn if there are extra fields in the TOML that aren't expected
+    extra = d.keys() - ModelConfiguration.__annotations__.keys()
+    if extra:
+        extra_str = ', '.join(map(str,extra))
+        logger.warning(f"The following unexpected params in the config file were ignored: {extra_str}")
     mc = ModelConfiguration(
         name=d.get("name"),
         stan_file=Path(d.get("stan_file")),
