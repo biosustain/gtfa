@@ -47,18 +47,20 @@ class ModelConfiguration:
     analyse: bool = False
     disp_plot: bool = True
     save_plot: bool = False
+    verbose: bool = True
 
 
 def load_model_configuration(path: str) -> ModelConfiguration:
     d = toml.load(path)
     mc = ModelConfiguration(
-        name=d["name"],
-        stan_file=Path(d["stan_file"]),
-        data_folder=Path(d["data_folder"]),
-        likelihood=d["likelihood"],
-        sample_kwargs=d["sample_kwargs"],
-        analyse=d["analyse"],
-        devel=d["devel"]
+        name=d.get("name"),
+        stan_file=Path(d.get("stan_file")),
+        data_folder=Path(d.get("data_folder")),
+        likelihood=d.get("likelihood"),
+        sample_kwargs=d.get("sample_kwargs"),
+        analyse=d.get("analyse"),
+        devel=d.get("devel"),
+        verbose=d.get("verbose")
     )
     validate_model_configuration(mc)
     return mc
