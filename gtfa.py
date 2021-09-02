@@ -32,9 +32,7 @@ def check_input(config_files):
         sys.exit(2)
 
 
-def run_configs(args):
-    check_input(args)
-    configs = [load_model_configuration(filename) for filename in args]
+def run_configs(configs):
     for config in configs:
         # If this config is for development only then clear out any previous results
         this_results_dir = RESULTS_DIR / config.name
@@ -48,8 +46,6 @@ def run_configs(args):
         config.result_dir = this_results_dir
         # Set up logging
         setup_logging(config)
-        print(config.devel)
-        logger.debug("TEST")
         generate_samples(config)
         # Generate the analysis files
         if config.analyse:
@@ -60,5 +56,7 @@ def run_configs(args):
 
 if __name__ == "__main__":
     # For now all arguments should just be valid paths
-    config_files = sys.argv[1:]
-    run_configs(config_files)
+    args = sys.argv[1:]
+    check_input(args)
+    configs = [load_model_configuration(filename) for filename in args]
+    run_configs(configs)
