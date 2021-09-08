@@ -21,8 +21,7 @@ class ModelConfiguration:
 
     :param stan_file: Path to a Stan program
 
-    :param data_folder: Path to a folder containing files "measurements.csv",
-    "stoichiometry.csv" and "priors.csv"
+    :param data_folder: Path to a folder containing files "measurements.csv", "stoichiometry.csv" and "priors.csv"
 
     :param result_dir: Path to the result files of this run
 

@@ -1,5 +1,6 @@
 """Get an input to cmdstanpy.CmdStanModel.sample from a pd.DataFrame."""
-
+import logging
+import re
 from dataclasses import dataclass
 from typing import Dict, List
 import numpy as np
@@ -7,6 +8,8 @@ import pandas as pd
 from scipy.linalg import null_space
 
 from .util import codify, rref, get_free_fluxes
+
+logger = logging.getLogger(__name__)
 
 REL_TOL = 1e-12
 FUNCTION_TOL = 1e-12
@@ -70,7 +73,10 @@ def extract_prior_2d(
 
 
 def get_coords(S: pd.DataFrame, measurements: pd.DataFrame):
-    is_transport = pd.Series(["transport" in r for r in S.columns], index=S.columns)
+    # Make sure they are protected for the regular expression
+    TRANSPORT_NAMES = [re.escape(name) for name in ["transport", "EX_", "SK_", "DM_"]]
+    # Search for any of the names using regex
+    is_transport = S.columns.str.contains("|".join(TRANSPORT_NAMES))
     transports = S.columns[is_transport]
     enzymes = S.columns[~is_transport]
     num_met, num_rxn = S.shape
@@ -133,12 +139,14 @@ def get_stan_input(
     "x_cols".
 
     """
-    measurements_by_type = dict(
-        measurements.groupby("measurement_type").__iter__()
-    )
+    if len(measurements) == 0:
+        raise ValueError("At least one measurement is required")
+    # Make a dictionary based on the observation type
+    measurements_by_type = dict(measurements.groupby("measurement_type").__iter__())
     for t in ["mic", "flux", "enzyme"]:
-        if t not in measurements_by_type.keys():
-            raise ValueError(f"No {t} measurements provided.")
+        if t not in measurements.groupby("measurement_type").__iter__():
+            logger.warning(f"No {t} measurements provided.")
+            measurements_by_type[t] = pd.DataFrame(columns=measurements.columns)
     coords = get_coords(S, measurements)
     free_transport = get_name_ordered_overlap(coords, "reaction_ind", ["transport", "free_x_names"])
     free_met_conc = get_name_ordered_overlap(coords, "metabolite_ind", ["metabolite", "free_x_names"])
@@ -175,22 +183,8 @@ def get_stan_input(
         "ix_fixed_transport": make_index_map(coords, "reaction", ["transport", "fixed_x_names"]),
         "ix_free_met_conc": make_index_map(coords, "metabolite", ["metabolite", "free_x_names"]),
         "ix_fixed_met_conc": make_index_map(coords, "metabolite", ["metabolite", "fixed_x_names"]),
-
-
-
-        # "ix_free_enzyme": make_index_map(coords, "reaction", ["free_flux", "enzyme_names"]),
-        # "ix_free_transport": make_index_map(coords, "reaction", ["free_flux", "transport"]),
-        # "ix_fixed_flux": make_index_map(coords, "reaction", ["fixed_flux"]),
-        # "ix_fixed_enzyme": make_index_map(coords, "reaction", ["fixed_flux", "enzyme_names"]),
-        # "ix_fixed_transport": make_index_map(coords, "reaction", ["fixed_flux", "transport"]),
-        # "ix_fixed_to_enzyme": make_index_map(coords, "enzyme_names", ["enzyme_names", "fixed_flux"]),
-        # "ix_free_to_enzyme": make_index_map(coords, "enzyme_names", ["enzyme_names", "free_flux"]),
-        # "ix_fixed_to_transport": make_index_map(coords, "transport", ["transport", "fixed_flux"]),
-        # "ix_free_to_transport": make_index_map(coords, "transport", ["transport", "free_flux"]),
-
-
         # measurements
-        "N_condition": measurements["condition_id"].nunique(),
+        "N_condition": pd.concat([measurements["condition_id"], priors["condition_id"]]).nunique(),
         "N_y_enzyme": len(measurements_by_type["enzyme"]),
         "N_y_metabolite": len(measurements_by_type["mic"]),
         "N_y_flux": len(measurements_by_type["flux"]),
