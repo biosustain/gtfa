@@ -19,7 +19,7 @@ data {
   int<lower=0> N_free_met_conc;
 
   int<lower=1> N_free_x;
-  int<lower=1> N_fixed_x;
+  int<lower=0> N_fixed_x;
   int<lower=1> N_x;
 
   matrix[N_metabolite, N_reaction] S;
@@ -42,26 +42,10 @@ data {
   // Concentration fixed and free
   array[N_fixed_met_conc] int<lower=1,upper=N_reaction> ix_fixed_met_conc;
   array[N_free_met_conc] int<lower=1,upper=N_reaction> ix_free_met_conc;
-
-  // // Internal fixed and free reaction
-  // array[N_enzyme - N_free_enzyme] int<lower=1,upper=N_reaction> ix_fixed_enzyme;
-  // array[N_free_enzyme] int<lower=1,upper=N_reaction> ix_free_enzyme;
-  // // Now maps to the enzyme reactions
-  // array[N_enzyme - N_free_enzyme] int<lower=1,upper=N_enzyme> ix_fixed_to_enzyme;
-  // array[N_free_enzyme] int<lower=1,upper=N_enzyme> ix_free_to_enzyme;
-  //
-  //
-  // // // All fixed and free
-  // array[N_reaction - N_free_flux] int<lower=1,upper=N_reaction> ix_fixed_flux;
-  // array[N_free_flux] int<lower=1,upper=N_reaction> ix_free_flux;
-  // // A matrix for calculating fixed variables corresponding to 0 = Sv
-  // matrix[N_reaction - N_free_flux, N_free_flux] free_to_fixed;
-
-
   // // measurements
   int<lower=1> N_condition;
-  int<lower=1> N_y_metabolite;
-  int<lower=1> N_y_flux;
+  int<lower=0> N_y_metabolite;
+  int<lower=0> N_y_flux;
   vector<lower=0>[N_y_metabolite] y_metabolite;
   vector<lower=0>[N_y_metabolite] sigma_metabolite;
   array[N_y_metabolite] int<lower=1,upper=N_metabolite> metabolite_y_metabolite;
