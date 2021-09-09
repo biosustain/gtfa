@@ -4,6 +4,7 @@ import logging
 import os
 import re
 import warnings
+from pathlib import Path
 from typing import List
 import arviz as az
 import numpy as np
@@ -16,6 +17,13 @@ from .cmdstanpy_to_arviz import get_infd_kwargs
 
 
 logger = logging.getLogger(__name__)
+
+
+def stan_input_from_dir(data_folder: Path, likelihood=False):
+    priors = pd.read_csv(data_folder / "priors.csv")
+    measurements = pd.read_csv(data_folder / "measurements.csv")
+    S = pd.read_csv(data_folder / "stoichiometry.csv", index_col="metabolite")
+    return get_stan_input(measurements, S, priors, likelihood)
 
 
 def generate_samples(config: ModelConfiguration) -> None:

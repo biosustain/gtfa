@@ -73,8 +73,9 @@ def extract_prior_2d(
 
 
 def get_coords(S: pd.DataFrame, measurements: pd.DataFrame):
+    # List of prefixes for non-internal reactions. Transport, Exchange, Sink, Demand, Excluded
     # Make sure they are protected for the regular expression
-    TRANSPORT_NAMES = [re.escape(name) for name in ["transport", "EX_", "SK_", "DM_"]]
+    TRANSPORT_NAMES = [re.escape(name) for name in ["transport", "EX_", "SK_", "DM_", "EXCL_"]]
     # Search for any of the names using regex
     is_transport = S.columns.str.contains("|".join(TRANSPORT_NAMES))
     transports = S.columns[is_transport]
