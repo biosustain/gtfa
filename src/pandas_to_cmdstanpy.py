@@ -145,7 +145,7 @@ def get_stan_input(
     # Make a dictionary based on the observation type
     measurements_by_type = dict(measurements.groupby("measurement_type").__iter__())
     for t in ["mic", "flux", "enzyme"]:
-        if t not in measurements.groupby("measurement_type").__iter__():
+        if t not in measurements_by_type:
             logger.warning(f"No {t} measurements provided.")
             measurements_by_type[t] = pd.DataFrame(columns=measurements.columns)
     coords = get_coords(S, measurements)
