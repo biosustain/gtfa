@@ -55,7 +55,8 @@ data {
   array[N_y_flux] int<lower=1,upper=N_reaction> reaction_y_flux;
   array[N_y_flux] int<lower=1,upper=N_condition> condition_y_flux;
   // priors
-  array[2] vector[N_metabolite] prior_dgf;
+  vector[N_metabolite] prior_dgf_mean;
+  matrix[N_metabolite, N_metabolite] prior_dgf_cov;
   array[2, N_condition] vector[N_free_transport] prior_transport_free;
   array[2, N_condition] vector[N_enzyme] prior_enzyme;
   array[2, N_condition] vector[N_enzyme] prior_b;
@@ -106,10 +107,6 @@ transformed parameters {
     // Solve for the remaining log metabolite values
     log_metabolite[cond, ix_free_met_conc] = log_metabolite_free[cond];
     log_metabolite[cond, ix_fixed_met_conc] = (fixed_x[ix_fixed_to_met] - dgf[ix_fixed_met_conc]) ./ RT;
-    // print("Calc log met");
-    // print(fixed_x[ix_fixed_to_met]);
-    // print(dgf[ix_fixed_met_conc]);
-    // print((fixed_x[ix_fixed_to_met] - dgf[ix_fixed_met_conc]) ./ RT);
     // Calculate the dgr
     dgr[cond] = get_dgr(dgf, log_metabolite[cond], S);
     // Calculate the fluxes
@@ -117,28 +114,10 @@ transformed parameters {
     // Add the fixed and free transport reactions
     flux[cond][ix_free_transport] = transport_free[cond];
     flux[cond][ix_fixed_transport] = fixed_x[ix_fixed_to_trans];
-    // print("b");
-    // print(b[cond]);
-    // print("Enz");
-    // print(enzyme[cond]);
-    // print("fixed");
-    // print(fixed_x);
-    // print("Free");
-    // print(free_x);
-    // print("Log met free");
-    // print(log_metabolite_free);
-    // print("dgf");
-    // print(dgf);
-    // print("log");
-    // print(log_metabolite[cond]);
-    // print("dgr");
-    // print(dgr[cond]);
-    // print("flux");
-    // print(flux[cond]);
   }
 }
 model {
-  dgf ~ normal(prior_dgf[1], prior_dgf[2]);
+  dgf ~ multi_normal(prior_dgf_mean, prior_dgf_cov);
   for (c in 1:N_condition){
     enzyme[c] ~ lognormal(prior_enzyme[1, c], prior_enzyme[2, c]);
     b[c] ~ lognormal(prior_b[1, c], prior_b[2, c]);

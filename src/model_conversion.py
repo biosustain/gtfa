@@ -4,11 +4,12 @@ from copy import deepcopy
 
 import cobra.util.array
 import multitfa.core.tmodel
+import numpy as np
 import pandas as pd
 
 logger = logging.getLogger(__name__)
 
-def write_model_files(tmodel : multitfa.core.tmodel, model_dir: pathlib.Path):
+def write_model_files(tmodel : multitfa.core.tmodel, model_dir: pathlib.Path, eps = 1e-4):
     """
     Take a multitfa tmodel and write priors.csv and stoichiometry.csv files
     :return:
@@ -32,20 +33,47 @@ def write_model_files(tmodel : multitfa.core.tmodel, model_dir: pathlib.Path):
     s_to_write.columns.name = "reactions"
     s_to_write.index = mets
     s_to_write.index.name = "metabolite"
-    s_to_write.to_csv(model_dir / "stoichiometry.csv")
+
     # The dgf priors
-    columns = ["parameter","target_id","condition_id","loc","scale"]
     dgf_means = [tmet.delG_f for tmet in tmodel.metabolites]
-    dgf_sd = [tmet.std_dev for tmet in tmodel.metabolites]
+    # Vector of components for each dgf
+    components = np.concatenate([tmet.compound_vector.T for tmet in tmodel.metabolites], axis=1)
+    # Transform the covariance matrix of the components to that of the individual compounds
+    cov = components.T @ multitfa.util.thermo_constants.covariance @ components
+    # # Sparsify the matrix a little by removing very small covariances
+    # cov[np.abs(cov) < eps] = 0
+    # Convert to a dataframe
+    cov = pd.DataFrame(cov, columns=mets, index=mets)
     # Write the enzyme concentration priors
     num_mets = len(tmodel.metabolites)
-    column_data = zip(["dgf"]*num_mets, mets, [""]*num_mets, dgf_means, dgf_sd)
+    column_data = zip(["dgf"]*num_mets, mets, [""]*num_mets, dgf_means)
     dgf_df = pd.DataFrame(column_data)
-    dgf_df.columns = columns
+    dgf_df.columns = ["parameter","target_id","condition_id","loc"]
     dgf_df = dgf_df.set_index("parameter")
+    # Write the final files
     dgf_df.to_csv(model_dir / "priors.csv")
+    s_to_write.to_csv(model_dir / "stoichiometry.csv")
+    cov.to_csv(model_dir / "priors_cov.csv")
     # The concentration/enzyme/exchange priors are all represented by the defaults
 
 
 
+def process_covariance_matrix(tmodel, covariance):
+    # Pick indices of components present in the current model
+    model_component_indices = [
+        i
+        for i in range(tmodel.compound_vector_matrix.shape[1])
+        if np.any(tmodel.compound_vector_matrix[:, i])
+    ]
 
+    # Reduced the compound_vector to contain only the non zero entries
+    model_compound_vector = tmodel.compound_vector_matrix[:, model_component_indices]
+
+    # Now extract the sub covariance matrix containing only the components present in the model
+    component_model_covariance = covariance[:, model_component_indices][
+                                 model_component_indices, :
+                                 ]
+
+    # Now separate the compounds that have variance > 1000 and others to avoid numerical issues
+    high_variance_indices = np.where(np.diag(component_model_covariance) > 1000)[0]
+    low_variance_indices = np.where(np.diag(component_model_covariance) < 1000)[0]

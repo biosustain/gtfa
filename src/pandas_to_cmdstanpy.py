@@ -130,6 +130,7 @@ def get_stan_input(
     measurements: pd.DataFrame,
     S: pd.DataFrame,
     priors: pd.DataFrame,
+    priors_cov: pd.DataFrame,
     likelihood: bool,
 ) -> Dict:
     """Get an input to cmdstanpy.CmdStanModel.sample.
@@ -155,7 +156,10 @@ def get_stan_input(
     prior_enzyme = extract_prior_2d("enzyme_names", priors, coords["enzyme_names"], coords["condition"], 1, 0.1)
     prior_met_conc_free = extract_prior_2d("metabolite", priors, free_met_conc, coords["condition"], 0, 2)
     prior_transport_free = extract_prior_2d("transport", priors, free_transport, coords["condition"], 0.4, 0.01)
-    prior_dgf = extract_prior_1d("dgf", priors, coords["metabolite"], -200, 200)
+    # We're going to assume full prior information on dgf
+    prior_dgf_mean = priors[priors["parameter"] == "dgf"]["loc"]
+    if len(prior_dgf_mean) != S.shape[0]:
+        raise ValueError("All dgf means must be provided in the priors file")
     return {
         # Sizes
         "N_metabolite": S.shape[0],
@@ -202,7 +206,8 @@ def get_stan_input(
         "metabolite_y_metabolite": measurements_by_type["mic"]["target_id"].map(codify(coords["metabolite"])).values.tolist(),
         "condition_y_metabolite": measurements_by_type["mic"]["condition_id"].map(codify(coords["condition"])).values.tolist(),
         # priors
-        "prior_dgf": [prior_dgf.location.values.tolist(), prior_dgf.scale.values.tolist()],
+        "prior_dgf_mean": prior_dgf_mean.values.tolist(),
+        "prior_dgf_cov": priors_cov.values.tolist(),
         "prior_transport_free": [prior_transport_free.location.values.tolist(), prior_transport_free.scale.values.tolist()],
         "prior_enzyme": [prior_enzyme.location.values.tolist(), prior_enzyme.scale.values.tolist()],
         "prior_b": [prior_b.location.values.tolist(), prior_b.scale.values.tolist()],

@@ -21,9 +21,10 @@ logger = logging.getLogger(__name__)
 
 def stan_input_from_dir(data_folder: Path, likelihood=False):
     priors = pd.read_csv(data_folder / "priors.csv")
+    priors_cov = pd.read_csv(data_folder / "priors_cov.csv", index_col=0)
     measurements = pd.read_csv(data_folder / "measurements.csv")
     S = pd.read_csv(data_folder / "stoichiometry.csv", index_col="metabolite")
-    return get_stan_input(measurements, S, priors, likelihood)
+    return get_stan_input(measurements, S, priors, priors_cov, likelihood)
 
 
 def generate_samples(config: ModelConfiguration) -> None:
@@ -35,9 +36,10 @@ def generate_samples(config: ModelConfiguration) -> None:
     infd_file = config.result_dir / "infd.nc"
     json_file = config.result_dir / "input_data.json"
     priors = pd.read_csv(config.data_folder / "priors.csv")
+    priors_cov = pd.read_csv(config.data_folder / "priors_cov.csv", index_col=0)
     measurements = pd.read_csv(config.data_folder / "measurements.csv")
     S = pd.read_csv(config.data_folder / "stoichiometry.csv", index_col="metabolite")
-    stan_input = get_stan_input(measurements, S, priors, config.likelihood)
+    stan_input = get_stan_input(measurements, S, priors, priors_cov, config.likelihood)
     logger.info(f"Writing input data to {json_file}")
     jsondump(str(json_file), stan_input)
     model = CmdStanModel(
