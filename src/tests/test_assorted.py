@@ -7,6 +7,7 @@ import scipy
 import src.util as util
 from src.fitting import stan_input_from_dir
 from src.model_conversion import write_model_files
+# Don't delete
 from model_setup import ecoli_model, model_small
 
 def test_get_free_fluxes_solution_many():
