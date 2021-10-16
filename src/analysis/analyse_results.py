@@ -32,31 +32,3 @@ def pair_plots(config, display=True, save=False):
         if display:
             plt.show()
 
-
-def to_dataframe(mcmc, dims, coords):
-    """ Convert the MCMC output of stan to a pandas dataframe"""
-    table = mcmc.draws()
-    num_chains = table.shape[1]
-    param_dfs = []
-    for param, cols in mcmc.stan_vars_cols.items():
-        if not param in dims:
-            # Skip internal params
-            continue
-        if len(dims[param]) == 1:
-            param_dims = [["shared"], coords[dims[param][0]]]
-        else:
-            param_dims = [coords[dim] for dim in dims[param]]
-        # Get a list of column tuples for the multiindex
-        # Add the chains
-        column_lists = [range(num_chains), [param]]
-        column_lists.extend(param_dims[::-1]) # Needs to be reversed because mcmc expands in the other order
-        column_tuples = list(itertools.product(*column_lists))
-        # Now put all the chains side-by-side
-        chain_tables = [table[:, chain, cols] for chain in range(num_chains)]
-        all_chains = np.concatenate(chain_tables, axis=1)
-        param_df = pd.DataFrame(all_chains, columns=pd.MultiIndex.from_tuples(column_tuples, names=["chain", "param", "ind", "cond"]))
-        param_dfs.append(param_df)
-    df = pd.concat(param_dfs, axis=1)
-    # Reorder the levels to have the conditions then indices
-    df.columns = df.columns.reorder_levels([0, 1, 3, 2])
-    return df
