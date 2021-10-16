@@ -172,7 +172,7 @@ def get_stan_input(
         "N_free_met_conc": len(coords["free_met_conc"]),
         "N_free_x": len(coords["free_x"]),
         "N_fixed_x": len(coords["fixed_x"]),
-        "N_x": len(coords["fixed_x"] + coords["fixed_x"]),
+        "N_x": len(coords["fixed_x"] + coords["free_x"]),
         # Network
         "S": S.values.tolist(),
         # Indexing
