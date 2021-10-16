@@ -73,7 +73,7 @@ transformed data {
 }
 
 parameters {
-  vector[N_metabolite] dgf;
+  vector[N_metabolite] dgf_ctd;
   array[N_condition] vector<lower=0>[N_enzyme] b;
   array[N_condition] vector<lower=0>[N_enzyme] enzyme;
   array[N_condition] vector[N_free_met_conc] log_metabolite_free;
@@ -117,7 +117,7 @@ transformed parameters {
   }
 }
 model {
-  dgf ~ multi_normal(prior_dgf_mean, prior_dgf_cov);
+  dgf_ctd ~ multi_normal(rep_vector(0, N_metabolite), prior_dgf_cov);
   for (c in 1:N_condition){
     enzyme[c] ~ lognormal(prior_enzyme[1, c], prior_enzyme[2, c]);
     b[c] ~ lognormal(prior_b[1, c], prior_b[2, c]);
@@ -147,7 +147,7 @@ generated quantities {
     // Should be all 0
     for (cond in 1:N_condition){
       conc_change = S * flux[cond];
-      print(conc_change);
+      // print(conc_change);
       for (i in 1:N_metabolite){
         if (fabs(conc_change[i]) > eps){
           reject("The steady state assumption must hold. Met ", i,
