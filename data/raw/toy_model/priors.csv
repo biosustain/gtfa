@@ -1,8 +1,8 @@
 parameter,target_id,condition_id,loc,scale
-dgf,g6p,,0,3
-dgf,g1p,,0,3
-dgf,f1p,,0,3
-dgf,f6p,,0,3
+dgf,f6p_c,,-1284.615,
+dgf,g6p_c,,-1279.440,
+dgf,f1p_c,,-1283.443,
+dgf,g1p_c,,-1280.186,
 b_free,A,condition_1,0,0.2
 b_free,B,condition_1,0,0.2
 b_free,C,condition_1,0,0.2
