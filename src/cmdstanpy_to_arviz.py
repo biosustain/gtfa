@@ -17,15 +17,16 @@ def get_infd_kwargs(
         coords=get_coords(reorder_s(S), measurements),
         dims={
             # Free parameters
-            "b": ["condition", "enzyme_names"],
-            "enzyme": ["condition", "enzyme_names"],
+            "b": ["condition", "internal_names"],
+            "enzyme": ["condition", "internal_names"],
             "log_metabolite_free": ["condition", "free_met_conc"],
-            "transport_free": ["condition", "free_transport"],
+            "transport_free": ["condition", "free_exchange"],
             "dgf": ["metabolite"],
             # Fixed parameters
             "dgr": ["condition", "reaction"],
             "flux": ["condition", "reaction"],
-            "log_metabolite": ["condition", "metabolite"]
+            "log_metabolite": ["condition", "metabolite"],
+            "x": ["condition", "x_names"]
         },
         save_warmup=save_warmup,
     )
