@@ -2,7 +2,7 @@
 
 from typing import List, Dict
 import pandas as pd
-from .pandas_to_cmdstanpy import get_coords
+from .pandas_to_cmdstanpy import get_coords, reorder_s
 
 
 def get_infd_kwargs(
@@ -14,7 +14,7 @@ def get_infd_kwargs(
     else:
         save_warmup = True
     return dict(
-        coords=get_coords(S, measurements),
+        coords=get_coords(reorder_s(S), measurements),
         dims={
             # Free parameters
             "b": ["condition", "enzyme_names"],
