@@ -15,6 +15,18 @@ REL_TOL = 1e-12
 FUNCTION_TOL = 1e-12
 MAX_NUM_STEPS = int(1e9)
 
+# TAKEN FROM PTA (I think they fitted a lognormal to all met concentrations in all conditions)
+DEFAULT_MET_CONC_MEAN = -8.3371
+DEFAULT_MET_CONC_SCALE = 1.9885
+# This still needs to be determined
+DEFAULT_ENZ_CONC_MEAN = -8.3371
+DEFAULT_ENZ_CONC_SCALE = 1.9885
+DEFAULT_EXCHANGE_MEAN = 0
+DEFAULT_EXCHANGE_SCALE = 200
+DEFAULT_B_MEAN = 3
+DEFAULT_B_SCALE = 3
+
+
 @dataclass
 class IndPrior1d:
     parameter_name: str
@@ -95,6 +107,9 @@ def get_coords(S: pd.DataFrame, measurements: pd.DataFrame):
     s_gamma_mod[num_ex:, num_ex:] = s_gamma.to_numpy()
     s_total = S @ s_gamma_mod
     free_x_ind, _ = get_free_fluxes(s_total.to_numpy())
+    # This biases the model towards more fixed exchange reactions
+    free_x_ind, _ = get_free_fluxes(np.flip(s_total.to_numpy(), axis=1))
+    free_x_ind = np.flip(free_x_ind)
     # Get the fixed and free x values
     x_names = pd.Series(exchanges.tolist() + S.index.tolist())
     free_x_names = x_names[free_x_ind]
@@ -166,10 +181,10 @@ def get_stan_input(
     coords = get_coords(S, measurements)
     free_exchange = get_name_ordered_overlap(coords, "reaction_ind", ["exchange", "free_x_names"])
     free_met_conc = get_name_ordered_overlap(coords, "metabolite_ind", ["metabolite", "free_x_names"])
-    prior_b = extract_prior_2d("b", priors, coords["internal_names"], coords["condition"], 2, 2)
-    prior_enzyme = extract_prior_2d("internal_names", priors, coords["internal_names"], coords["condition"], 1, 0.1)
-    prior_met_conc_free = extract_prior_2d("metabolite", priors, free_met_conc, coords["condition"], 0, 2)
-    prior_exchange_free = extract_prior_2d("exchange", priors, free_exchange, coords["condition"], 0.4, 0.01)
+    prior_b = extract_prior_2d("b", priors, coords["internal_names"], coords["condition"], DEFAULT_B_MEAN, DEFAULT_B_SCALE)
+    prior_enzyme = extract_prior_2d("internal_names", priors, coords["internal_names"], coords["condition"], DEFAULT_ENZ_CONC_MEAN, DEFAULT_ENZ_CONC_SCALE)
+    prior_met_conc_free = extract_prior_2d("metabolite", priors, free_met_conc, coords["condition"], DEFAULT_MET_CONC_MEAN, DEFAULT_MET_CONC_SCALE)
+    prior_exchange_free = extract_prior_2d("exchange", priors, free_exchange, coords["condition"], DEFAULT_EXCHANGE_MEAN, DEFAULT_EXCHANGE_SCALE)
     # We're going to assume full prior information on dgf
     prior_dgf_mean = priors[priors["parameter"] == "dgf"]["loc"]
     if len(prior_dgf_mean) != S.shape[0]:
