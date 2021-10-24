@@ -72,9 +72,9 @@ def load_model_configuration(path: str) -> ModelConfiguration:
     
 
 def validate_model_configuration(mc: ModelConfiguration) -> None:
-    assert os.path.exists(mc.stan_file)
-    assert os.path.exists(mc.data_folder)
-    assert type(mc.name) is str
+    assert os.path.exists(mc.stan_file), "stan file must exist"
+    assert os.path.exists(mc.data_folder), "data folder must exist"
+    assert type(mc.name) is str, "name must be a string"
     assert mc.name != ""
     assert type(mc.likelihood) is bool
     
