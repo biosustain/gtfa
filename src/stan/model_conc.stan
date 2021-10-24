@@ -161,7 +161,7 @@ model {
     for (n in 1:N_y_enzyme){
       int c = condition_y_enzyme[n];
       int enz_ind = internal_y_enzyme[n];
-      y_metabolite[n] ~ lognormal(enzyme[c, enz_ind], sigma_enzyme[n]);
+      y_enzyme[n] ~ lognormal(exp(enzyme[c, enz_ind]), sigma_enzyme[n]);
     }
     // Fluxes
     for (n in 1:N_y_flux){
