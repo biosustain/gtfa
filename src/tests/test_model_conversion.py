@@ -9,6 +9,7 @@ import pytest
 from src.fitting import generate_samples
 from src.model_configuration import load_model_configuration
 # Don't delete
+# from model_setup import ecoli_model, model_small
 from model_setup import ecoli_model, model_small
 
 logger = logging.getLogger()
