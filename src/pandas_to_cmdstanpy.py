@@ -22,7 +22,7 @@ DEFAULT_MET_CONC_SCALE = 1.9885
 DEFAULT_ENZ_CONC_MEAN = -8.3371
 DEFAULT_ENZ_CONC_SCALE = 1.9885
 DEFAULT_EXCHANGE_MEAN = 0
-DEFAULT_EXCHANGE_SCALE = 200
+DEFAULT_EXCHANGE_SCALE = 1
 DEFAULT_B_MEAN = 3
 DEFAULT_B_SCALE = 3
 
@@ -32,6 +32,7 @@ class IndPrior1d:
     parameter_name: str
     location: pd.Series
     scale: pd.Series
+
 
 @dataclass
 class IndPrior2d:
@@ -54,7 +55,7 @@ def extract_prior_1d(
     )
     return IndPrior1d(parameter, loc, scale)
 
-    
+
 def extract_prior_2d(
     parameter: str,
     priors: pd.DataFrame,
@@ -153,6 +154,25 @@ def reorder_s(S):
     return S
 
 
+def check_input(measurements, priors):
+    if len(measurements) == 0:
+        raise ValueError("At least one measurement is required")
+    measurements_by_type = dict(measurements.groupby("measurement_type").__iter__())
+    # Check that enzyme and metabolite measurements are in log scale
+    if not measurements_by_type["enzyme"]["measurement"].between(0, 1).all():
+        raise ValueError("Enzyme concentration measurements should be between 0 and 1 molar"
+                         "Are they maybe recorded as log concentrations?")
+    if not measurements_by_type["mic"]["measurement"].between(0, 1).all():
+        raise ValueError("Metabolite concentration measurements should be between 0 and 1 molar. "
+                         "Are they maybe recorded as log concentrations?")
+    priors_by_type = dict(priors.groupby("parameter").__iter__())
+    # Check that the lognormal priors are in the correct range
+    if ("enzyme" in priors_by_type and not priors_by_type["enzyme"]["loc"].between(-20, 0).all()) \
+            or ("concentration" in priors_by_type and not priors_by_type["concentration"]["loc"].between(-20, 0).all()):
+        raise ValueError("Reasonable lognormal concentration priors should be between -20 and 0. "
+                         "Maybe you made a mistake in the formulation?")
+
+
 def get_stan_input(
     measurements: pd.DataFrame,
     S: pd.DataFrame,
@@ -168,8 +188,7 @@ def get_stan_input(
     "x_cols".
 
     """
-    if len(measurements) == 0:
-        raise ValueError("At least one measurement is required")
+    check_input(measurements, priors)
     # Reorder the input stoichiometric matrix to put any exchange reactions on the left
     S = reorder_s(S)
     # Make a dictionary based on the observation type
@@ -227,22 +246,31 @@ def get_stan_input(
         "y_flux": measurements_by_type["flux"]["measurement"].values.tolist(),
         "sigma_flux": measurements_by_type["flux"]["error_scale"].values.tolist(),
         "reaction_y_flux": measurements_by_type["flux"]["target_id"].map(codify(coords["reaction"])).values.tolist(),
-        "condition_y_flux": measurements_by_type["flux"]["condition_id"].map(codify(coords["condition"])).values.tolist(),
-        "y_enzyme": measurements_by_type["enzyme"]["measurement"].values.tolist(),
+        "condition_y_flux": measurements_by_type["flux"]["condition_id"].map(
+            codify(coords["condition"])).values.tolist(),
+        # Concentrations given on a log scale
+        "y_enzyme": np.log(measurements_by_type["enzyme"]["measurement"]).values.tolist(),
         "sigma_enzyme": measurements_by_type["enzyme"]["error_scale"].values.tolist(),
-        "internal_y_enzyme": measurements_by_type["enzyme"]["target_id"].map(codify(coords["internal_names"])).values.tolist(),
-        "condition_y_enzyme": measurements_by_type["enzyme"]["condition_id"].map(codify(coords["condition"])).values.tolist(),
-        "y_metabolite": measurements_by_type["mic"]["measurement"].values.tolist(),
+        "internal_y_enzyme": measurements_by_type["enzyme"]["target_id"].map(
+            codify(coords["internal_names"])).values.tolist(),
+        "condition_y_enzyme": measurements_by_type["enzyme"]["condition_id"].map(
+            codify(coords["condition"])).values.tolist(),
+        # Concentrations given on a log scale
+        "y_metabolite": np.log(measurements_by_type["mic"]["measurement"]).values.tolist(),
         "sigma_metabolite": measurements_by_type["mic"]["error_scale"].values.tolist(),
-        "metabolite_y_metabolite": measurements_by_type["mic"]["target_id"].map(codify(coords["metabolite"])).values.tolist(),
-        "condition_y_metabolite": measurements_by_type["mic"]["condition_id"].map(codify(coords["condition"])).values.tolist(),
+        "metabolite_y_metabolite": measurements_by_type["mic"]["target_id"].map(
+            codify(coords["metabolite"])).values.tolist(),
+        "condition_y_metabolite": measurements_by_type["mic"]["condition_id"].map(
+            codify(coords["condition"])).values.tolist(),
         # priors
         "prior_dgf_mean": prior_dgf_mean.values.tolist(),
         "prior_dgf_cov": priors_cov.values.tolist(),
-        "prior_exchange_free": [prior_exchange_free.location.values.tolist(), prior_exchange_free.scale.values.tolist()],
+        "prior_exchange_free": [prior_exchange_free.location.values.tolist(),
+                                prior_exchange_free.scale.values.tolist()],
         "prior_enzyme": [prior_enzyme.location.values.tolist(), prior_enzyme.scale.values.tolist()],
         "prior_b": [prior_b.location.values.tolist(), prior_b.scale.values.tolist()],
-        "prior_free_met_conc": [prior_met_conc_free.location.values.tolist(), prior_met_conc_free.scale.values.tolist()],
+        "prior_free_met_conc": [prior_met_conc_free.location.values.tolist(),
+                                prior_met_conc_free.scale.values.tolist()],
         # config
         "likelihood": int(likelihood),
     }

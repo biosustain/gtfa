@@ -1,8 +1,8 @@
 functions {
-  vector get_dgr(vector dgf, vector log_metabolite, matrix S){
+  vector get_dgr(vector dgf, vector log_metabolite, matrix s_intern){
     /* Get delta G of reaction for each reaction. */
     real RT = 0.008314 * 298.15;
-    return S' * (dgf + RT * log_metabolite);
+    return s_intern' * (dgf + RT * log_metabolite);
   }
 }
 data {
@@ -56,12 +56,12 @@ data {
   array[N_y_flux] int<lower=1,upper=N_reaction> reaction_y_flux;
   array[N_y_flux] int<lower=1,upper=N_condition> condition_y_flux;
   // Enzymes
-  vector<lower=0>[N_y_enzyme] y_enzyme;
+  vector[N_y_enzyme] y_enzyme;
   vector<lower=0>[N_y_enzyme] sigma_enzyme;
   array[N_y_enzyme] int<lower=1,upper=N_internal> internal_y_enzyme;
   array[N_y_enzyme] int<lower=1,upper=N_condition> condition_y_enzyme;
   // Mets
-  vector<lower=0>[N_y_metabolite] y_metabolite;
+  vector[N_y_metabolite] y_metabolite;
   vector<lower=0>[N_y_metabolite] sigma_metabolite;
   array[N_y_metabolite] int<lower=1,upper=N_metabolite> metabolite_y_metabolite;
   array[N_y_metabolite] int<lower=1,upper=N_condition> condition_y_metabolite;
@@ -96,13 +96,13 @@ transformed data {
 parameters {
   vector[N_metabolite] dgf_ctd;
   array[N_condition] vector<lower=0>[N_internal] b;
-  array[N_condition] vector<lower=0>[N_internal] enzyme;
+  array[N_condition] vector[N_internal] log_enzyme;
   array[N_condition] vector[N_free_met_conc] log_metabolite_free;
   array[N_condition] vector[N_free_exchange] exchange_free;
 }
 
 transformed parameters {
-  array[N_condition] vector[N_reaction] dgr;
+  array[N_condition] vector[N_internal] dgr;
   array[N_condition] vector[N_reaction] flux;
   array[N_condition] vector[N_metabolite] log_metabolite;
   array[N_condition] vector[N_x] x;
@@ -118,7 +118,7 @@ transformed parameters {
     mod_s = S;
     // This could be done with the left/right multiply function maybe?
     mod_s[:, ix_internal_to_rxn] = mod_s[:, ix_internal_to_rxn] .*
-        rep_matrix((b[cond] .* enzyme[cond])', N_metabolite);
+        rep_matrix((b[cond] .* exp(log_enzyme[cond]))', N_metabolite);
     s_c = mod_s * s_gamma;
     // Get a vector of the free values
     if (N_free_exchange > 0){
@@ -132,9 +132,9 @@ transformed parameters {
     log_metabolite[cond, ix_fixed_met_to_met] = (x[cond][ix_fixed_met_to_x] -
         dgf[ix_fixed_met_to_met]) ./ RT;
     // Calculate the dgr
-    dgr[cond] = get_dgr(dgf, log_metabolite[cond], S);
+    dgr[cond] = get_dgr(dgf, log_metabolite[cond], S[:, ix_internal_to_rxn]);
     // Calculate the fluxes
-    flux[cond][ix_internal_to_rxn] = dgr[cond][ix_internal_to_rxn] .* b[cond] .* enzyme[cond];
+    flux[cond][ix_internal_to_rxn] = dgr[cond] .* b[cond] .* exp(log_enzyme[cond]);
     // Add the fixed and free exchange reactions
     flux[cond][ix_ex_to_rxn] = x[cond][ix_ex_to_x];
   }
@@ -145,7 +145,7 @@ model {
   dgf_ctd ~ multi_normal(rep_vector(0, N_metabolite), prior_dgf_cov);
   for (c in 1:N_condition){
     b[c] ~ lognormal(prior_b[1, c], prior_b[2, c]);
-    enzyme[c] ~ lognormal(prior_enzyme[1, c], prior_enzyme[2, c]);
+    log_enzyme[c] ~ normal(prior_enzyme[1, c], prior_enzyme[2, c]);
     log_metabolite_free[c] ~ normal(prior_free_met_conc[1, c], prior_free_met_conc[2, c]);
     exchange_free[c] ~ normal(prior_exchange_free[1, c], prior_exchange_free[2, c]);
   }
@@ -155,13 +155,13 @@ model {
     for (n in 1:N_y_metabolite){
       int c = condition_y_metabolite[n];
       int m = metabolite_y_metabolite[n];
-      y_metabolite[n] ~ lognormal(log_metabolite[c, m], sigma_metabolite[n]);
+      y_metabolite[n] ~ normal(log_metabolite[c, m], sigma_metabolite[n]);
     }
     // Enzyme concentrations
     for (n in 1:N_y_enzyme){
       int c = condition_y_enzyme[n];
       int enz_ind = internal_y_enzyme[n];
-      y_enzyme[n] ~ lognormal(exp(enzyme[c, enz_ind]), sigma_enzyme[n]);
+      y_enzyme[n] ~ normal(log_enzyme[c, enz_ind], sigma_enzyme[n]);
     }
     // Fluxes
     for (n in 1:N_y_flux){
