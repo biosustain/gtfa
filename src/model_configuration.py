@@ -41,10 +41,10 @@ class ModelConfiguration:
     stan_file: Path
     data_folder: Path
     sample_kwargs: Dict
+    analyse: dict
     likelihood: bool
     result_dir: Path = Path("empty")
     devel: bool = True
-    analyse: bool = False
     disp_plot: bool = True
     save_plot: bool = False
     verbose: bool = True
