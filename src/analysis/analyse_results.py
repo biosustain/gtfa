@@ -7,13 +7,13 @@ from matplotlib import pyplot as plt
 import arviz as az
 
 
-def pair_plots(config, display=True, save=False):
-    idata = az.from_netcdf(config.result_dir / "infd.nc")
+def pair_plots(config, idata, display=True, save=False):
+
     for var in ["dgr"]:
         axes = az.plot_pair(
             idata, group="posterior",
             var_names=[var],
-            coords={"condition": ["condition_1"], "reaction": ["A", "B", "C", "D", "E"]},
+            coords={"condition": ["condition_1"]},
             divergences=True
         )
         # Center the values for the dgr pair plots
@@ -32,3 +32,13 @@ def pair_plots(config, display=True, save=False):
         if display:
             plt.show()
 
+
+def analyse(config):
+    # If we are developing we don't want to save the pair plot files
+    save_plots = not config.devel
+    idata = az.from_netcdf(config.result_dir / "infd.nc")
+    if config.analyse.get("pair", False):
+        pair_plots(config, idata, save=save_plots)
+    if config.analyse.get("dens", False):
+        az.plot_density(idata, var_names=["log_metabolite", "b", "flux", "log_enzyme"])
+        plt.show()

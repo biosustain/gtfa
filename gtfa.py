@@ -4,7 +4,7 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-from src.analysis.analyse_results import pair_plots
+from src.analysis.analyse_results import analyse
 from src.fitting import generate_samples
 from src.model_configuration import load_model_configuration
 
@@ -49,9 +49,8 @@ def run_configs(configs):
         generate_samples(config)
         # Generate the analysis files
         if config.analyse:
-            # If we are developing we don't want to save the pair plot files
-            save_plots = not config.devel
-            pair_plots(config, save=save_plots)
+            analyse(config)
+
 
 
 if __name__ == "__main__":
