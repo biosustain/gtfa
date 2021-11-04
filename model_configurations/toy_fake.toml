@@ -1,0 +1,19 @@
+name = "toy_fake"
+stan_file = "src/stan/model_conc.stan"
+data_folder = "data/fake/simulation_study"
+likelihood = false
+analyse = {"pair" = true}
+devel = false
+save_plot = true
+verbose = true
+
+[sample_kwargs]
+chains = 2
+parallel_chains = 2
+sig_figs = 18
+show_progress = true
+iter_warmup = 2000
+iter_sampling = 2000
+max_treedepth = 12
+adapt_delta = 0.90
+refresh = 1
