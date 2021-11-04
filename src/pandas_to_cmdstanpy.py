@@ -159,10 +159,10 @@ def check_input(measurements, priors):
         raise ValueError("At least one measurement is required")
     measurements_by_type = dict(measurements.groupby("measurement_type").__iter__())
     # Check that enzyme and metabolite measurements are in log scale
-    if not measurements_by_type["enzyme"]["measurement"].between(0, 1).all():
+    if "enzyme" in measurements_by_type and not measurements_by_type["enzyme"]["measurement"].between(0, 1).all():
         raise ValueError("Enzyme concentration measurements should be between 0 and 1 molar"
                          "Are they maybe recorded as log concentrations?")
-    if not measurements_by_type["mic"]["measurement"].between(0, 1).all():
+    if "mic" in measurements_by_type and not measurements_by_type["mic"]["measurement"].between(0, 1).all():
         raise ValueError("Metabolite concentration measurements should be between 0 and 1 molar. "
                          "Are they maybe recorded as log concentrations?")
     priors_by_type = dict(priors.groupby("parameter").__iter__())
