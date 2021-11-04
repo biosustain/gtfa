@@ -1,20 +1,14 @@
 """Functions for fitting models using cmdstanpy."""
-import itertools
 import logging
-import os
-import re
-import warnings
 from pathlib import Path
-from typing import List
+
 import arviz as az
-import numpy as np
-from cmdstanpy import CmdStanModel
-from cmdstanpy.utils import jsondump
 import pandas as pd
+from cmdstanpy import CmdStanModel, write_stan_json
+
+from .cmdstanpy_to_arviz import get_infd_kwargs
 from .model_configuration import ModelConfiguration
 from .pandas_to_cmdstanpy import get_stan_input
-from .cmdstanpy_to_arviz import get_infd_kwargs
-
 
 logger = logging.getLogger(__name__)
 
@@ -38,10 +32,14 @@ def generate_samples(config: ModelConfiguration) -> None:
     priors = pd.read_csv(config.data_folder / "priors.csv")
     priors_cov = pd.read_csv(config.data_folder / "priors_cov.csv", index_col=0)
     measurements = pd.read_csv(config.data_folder / "measurements.csv")
-    S = pd.read_csv(config.data_folder / "stoichiometry.csv", index_col="metabolite")
-    stan_input = get_stan_input(measurements, S, priors, priors_cov, config.likelihood)
+    S = pd.read_csv(
+        config.data_folder / "stoichiometry.csv", index_col="metabolite"
+    )
+    stan_input = get_stan_input(
+        measurements, S, priors, priors_cov, config.likelihood
+    )
     logger.info(f"Writing input data to {json_file}")
-    jsondump(str(json_file), stan_input)
+    write_stan_json(str(json_file), stan_input)
     model = CmdStanModel(
         model_name=config.name, stan_file=str(config.stan_file)
     )
@@ -56,9 +54,7 @@ def generate_samples(config: ModelConfiguration) -> None:
     )
     logger.info(mcmc.diagnose().replace("\n\n", "\n"))
     infd_kwargs = get_infd_kwargs(S, measurements, config.sample_kwargs)
-    infd = az.from_cmdstan(
-        mcmc.runset.csv_files, **infd_kwargs
-    )
+    infd = az.from_cmdstan(mcmc.runset.csv_files, **infd_kwargs)
     logger.info(az.summary(infd))
     logger.info(f"Writing inference data to {infd_file}")
     infd.to_netcdf(str(infd_file))

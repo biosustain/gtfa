@@ -34,7 +34,9 @@ def check_df(df, coords, S, eps=1e-2):
             dgfs = df.loc[:, (chain, "dgf", "shared")]
             log_conc = df.loc[:, (chain, "log_metabolite", condition)]
             pred_dgr = S.T @ (dgfs + R * T * log_conc).T
-            assert ((dgrs.T - pred_dgr) < eps).all(axis=None), "dgrs should match"
+            assert ((dgrs.T - pred_dgr) < eps).all(
+                axis=None
+            ), "dgrs should match"
         # Check the steady state assumpiton
         for condition in conditions:
             fluxes = df[(chain, "flux", condition)]
@@ -42,10 +44,14 @@ def check_df(df, coords, S, eps=1e-2):
             failed = conc_change > eps
             if failed.any(axis=None):
                 failed_inds = failed.columns[failed.any()].tolist()
-                warnings.warn(f"Samples {failed_inds} in chain {chain} in {condition} do not sastify the steady state constraint.")
+                warnings.warn(
+                    f"Samples {failed_inds} in chain {chain} in {condition} do not sastify the steady state constraint."
+                )
         # Check the directions of reactions
         for condition in conditions:
             dgrs = df.loc[:, (chain, "dgr", condition, coords["enzyme_names"])]
-            fluxes = df.loc[:, (chain, "flux", condition, coords["enzyme_names"])]
+            fluxes = df.loc[
+                :, (chain, "flux", condition, coords["enzyme_names"])
+            ]
             bs = df.loc[:, (chain, "b", condition, coords["enzyme_names"])]
             assert not (dgrs * bs * fluxes < 0).any(axis=None)

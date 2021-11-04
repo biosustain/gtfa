@@ -4,11 +4,13 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Dict
+
 import pandas as pd
 import toml
 
-
 logger = logging.getLogger(__name__)
+
+
 @dataclass
 class ModelConfiguration:
     """Container for a path to a Stan model and some configuration.
@@ -27,7 +29,7 @@ class ModelConfiguration:
 
     :param sample_kwargs: dictionary of keyword arguments to
     cmdstanpy.CmdStanModel.sample.
-    
+
     :param likelihood: take measurements into account
 
     :param devel: This is being run for development and can overwrite previous values
@@ -55,8 +57,10 @@ def load_model_configuration(path: str) -> ModelConfiguration:
     # Warn if there are extra fields in the TOML that aren't expected
     extra = d.keys() - ModelConfiguration.__annotations__.keys()
     if extra:
-        extra_str = ', '.join(map(str,extra))
-        logger.warning(f"The following unexpected params in the config file were ignored: {extra_str}")
+        extra_str = ", ".join(map(str, extra))
+        logger.warning(
+            f"The following unexpected params in the config file were ignored: {extra_str}"
+        )
     mc = ModelConfiguration(
         name=d.get("name"),
         stan_file=Path(d.get("stan_file")),
@@ -65,11 +69,11 @@ def load_model_configuration(path: str) -> ModelConfiguration:
         sample_kwargs=d.get("sample_kwargs"),
         analyse=d.get("analyse"),
         devel=d.get("devel"),
-        verbose=d.get("verbose")
+        verbose=d.get("verbose"),
     )
     validate_model_configuration(mc)
     return mc
-    
+
 
 def validate_model_configuration(mc: ModelConfiguration) -> None:
     assert os.path.exists(mc.stan_file), "stan file must exist"
@@ -77,4 +81,3 @@ def validate_model_configuration(mc: ModelConfiguration) -> None:
     assert type(mc.name) is str, "name must be a string"
     assert mc.name != ""
     assert type(mc.likelihood) is bool
-    

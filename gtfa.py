@@ -11,15 +11,25 @@ from src.model_configuration import load_model_configuration
 RESULTS_DIR = Path("results")
 logger = logging.getLogger()
 
+
 def setup_logging(config):
-    FORMAT = '%(asctime)s | %(name)s | %(levelname)s | %(message)s'
-    HANDLERS = [logging.FileHandler(config.result_dir / "out.log"), logging.StreamHandler()]
+    FORMAT = "%(asctime)s | %(name)s | %(levelname)s | %(message)s"
+    HANDLERS = [
+        logging.FileHandler(config.result_dir / "out.log"),
+        logging.StreamHandler(),
+    ]
     if config.devel & config.verbose:
-        logging.basicConfig(level=logging.DEBUG, format=FORMAT, handlers=HANDLERS)
+        logging.basicConfig(
+            level=logging.DEBUG, format=FORMAT, handlers=HANDLERS
+        )
     elif config.verbose | config.devel:
-        logging.basicConfig(level=logging.INFO, format=FORMAT, handlers=HANDLERS)
+        logging.basicConfig(
+            level=logging.INFO, format=FORMAT, handlers=HANDLERS
+        )
     else:
-        logging.basicConfig(level=logging.WARNING, format=FORMAT, handlers=HANDLERS)
+        logging.basicConfig(
+            level=logging.WARNING, format=FORMAT, handlers=HANDLERS
+        )
     #
 
 
@@ -41,7 +51,9 @@ def run_configs(configs):
                 shutil.rmtree(this_results_dir)
         else:
             # Experimental configurations store all runs with the datetime of the run
-            this_results_dir = this_results_dir / datetime.now().strftime("%Y%m%d%H%M%S")
+            this_results_dir = this_results_dir / datetime.now().strftime(
+                "%Y%m%d%H%M%S"
+            )
         this_results_dir.mkdir()
         config.result_dir = this_results_dir
         # Set up logging
@@ -50,7 +62,6 @@ def run_configs(configs):
         # Generate the analysis files
         if config.analyse:
             analyse(config)
-
 
 
 if __name__ == "__main__":

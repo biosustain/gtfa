@@ -4,26 +4,33 @@ import numpy as np
 import pytest
 import scipy
 
-import src.util as util
-from src.fitting import stan_input_from_dir
-from src.model_conversion import write_model_files
 # Don't delete
 from model_setup import ecoli_model, model_small
 
+import src.util as util
+from src.fitting import stan_input_from_dir
+from src.model_conversion import write_model_files
+
+
 def test_get_free_fluxes_solution_many():
-    """ Test that the free and calculated functions satisfy the steady state equation"""
+    """Test that the free and calculated functions satisfy the steady state equation"""
     total_rows = 20
     total_cols = 100
 
     for nrows in range(3, total_rows):
-        for ncols in range(nrows+1, total_cols):
-            random_matrix = (scipy.sparse.rand(nrows, ncols, density=0.3, random_state=nrows+ncols).toarray() - 0.5) * 3
+        for ncols in range(nrows + 1, total_cols):
+            random_matrix = (
+                scipy.sparse.rand(
+                    nrows, ncols, density=0.3, random_state=nrows + ncols
+                ).toarray()
+                - 0.5
+            ) * 3
             random_matrix = np.around(random_matrix)
             get_free_fluxes_solution(random_matrix)
 
 
 def get_free_fluxes_solution(random_matrix):
-    """ Test that random free fluxes and calculated determined fluxes give the a steady state soltuion"""
+    """Test that random free fluxes and calculated determined fluxes give the a steady state soltuion"""
     repeats = 10
     eps = 1e-8
     nrows, ncols = random_matrix.shape
@@ -81,5 +88,3 @@ def test_excluded_reactions_not_present(model_small):
     stan_input = stan_input_from_dir(test_dir)
     # Test the expected input
     assert stan_input["N_exchange"] == 2, "Expect extra transport reaction"
-
-

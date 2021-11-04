@@ -1,7 +1,9 @@
 """Functions for turning cmdstanpy output into arviz InferenceData objects."""
 
-from typing import List, Dict
+from typing import Dict, List
+
 import pandas as pd
+
 from .pandas_to_cmdstanpy import get_coords, reorder_s
 
 
@@ -26,7 +28,7 @@ def get_infd_kwargs(
             "dgr": ["condition", "intern"],
             "flux": ["condition", "reaction"],
             "log_metabolite": ["condition", "metabolite"],
-            "x": ["condition", "x_names"]
+            "x": ["condition", "x_names"],
         },
         save_warmup=save_warmup,
     )

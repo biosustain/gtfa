@@ -22,19 +22,20 @@ def namevec(name, vec):
 
 
 def calc_internal_fluxes(s_gamma, e, b, dgf, c):
-    """ From a set of parameters, calculate the fluxes"""
+    """From a set of parameters, calculate the fluxes"""
     dgr = s_gamma.T @ (dgf + RT * np.log(c))
     return dgr.multiply(b * e, axis=0)
 
 
 def get_s_x(S, b, e, exchange_rxns):
-    """ Get the modified s matrix for calculating the free and fixed fluxes
-    """
+    """Get the modified s matrix for calculating the free and fixed fluxes"""
     n_exchange = exchange_rxns.sum()
     n_mets, n_rxns = S.shape
     s_x = np.zeros((n_rxns, n_exchange + n_mets))
     s_x[:n_exchange, :n_exchange] = np.identity(n_exchange)
-    s_x[n_exchange:, n_exchange:] = S.loc[:, ~exchange_rxns].T.mul(b * e, axis=0)
+    s_x[n_exchange:, n_exchange:] = S.loc[:, ~exchange_rxns].T.mul(
+        b * e, axis=0
+    )
     return s_x
 
 
@@ -48,9 +49,13 @@ def calc_fixed(S, b, e, c_free, t_free, dgf, free_vars):
     Calculate all fixed parameters from the free parameters
     """
     num_mets, num_rxns = S.shape
-    exchange_rxns = S.columns.str.contains("SK_") | S.columns.str.contains("EX_")
+    exchange_rxns = S.columns.str.contains("SK_") | S.columns.str.contains(
+        "EX_"
+    )
     # Check that they are at the start of the reactions
-    assert ~any(exchange_rxns[exchange_rxns.sum():]), "All reactions should be first"
+    assert ~any(
+        exchange_rxns[exchange_rxns.sum() :]
+    ), "All reactions should be first"
     # Determine the s_c and s_x matrices
     s_c = get_s_c(S, b, e, exchange_rxns)
     s_x = get_s_x(S, b, e, exchange_rxns)
@@ -64,8 +69,12 @@ def calc_fixed(S, b, e, c_free, t_free, dgf, free_vars):
     fixed_c_mask = ~free_vars[conc_x]
     # Calculate the rhs of the equation (from the free vars)
     x = np.full(num_x, np.NAN)
-    assert len(c_free) == free_c_mask.sum(), "The number of free c must be correct"
-    assert len(t_free) == free_vars[~conc_x].sum(), "The number of free t must be correct"
+    assert (
+        len(c_free) == free_c_mask.sum()
+    ), "The number of free c must be correct"
+    assert (
+        len(t_free) == free_vars[~conc_x].sum()
+    ), "The number of free t must be correct"
     x[conc_x & free_vars] = dgf[free_c_mask] + RT * c_free
     x[~conc_x & free_vars] = t_free
     rhs = -s_c[:, free_vars] @ x[free_vars]
@@ -84,7 +93,9 @@ def calc_fixed(S, b, e, c_free, t_free, dgf, free_vars):
 
 def check_fluxes(S, b, c, conc_x, dgf, e, exchange_rxns, num_rxns, s_c, s_x, x):
     # Check the s_x matrix
-    assert all(S @ s_x @ x < 1e-10), "All conc changes should be approximately 0"
+    assert all(
+        S @ s_x @ x < 1e-10
+    ), "All conc changes should be approximately 0"
     # Check the s_c matrix
     assert all(s_c @ x < 1e-10), "All conc changes should be approximately 0"
     # Check the standard calculation
@@ -96,20 +107,26 @@ def check_fluxes(S, b, c, conc_x, dgf, e, exchange_rxns, num_rxns, s_c, s_x, x):
 
 
 def find_params(test_dir):
-    """ Make a dataframe filled with samples of model parameters that have reasonable values"""
+    """Make a dataframe filled with samples of model parameters that have reasonable values"""
     # Now write the measurements to file
     result_dir = test_dir / "results"
     S = pd.read_csv(test_dir / "stoichiometry.csv", index_col=0)
     S = reorder_s(S)
-    exchange_rxns = S.columns.str.contains("SK_") | S.columns.str.contains("EX_")
+    exchange_rxns = S.columns.str.contains("SK_") | S.columns.str.contains(
+        "EX_"
+    )
     # Get the free and fixed fluxes
     n_internal = (~exchange_rxns).sum()
-    exchange_rxns = S.columns.str.contains("SK_") | S.columns.str.contains("EX_")
+    exchange_rxns = S.columns.str.contains("SK_") | S.columns.str.contains(
+        "EX_"
+    )
     s_c = get_s_c(S, np.ones(n_internal), np.ones(n_internal), exchange_rxns)
     free_vars, _ = get_free_fluxes(np.flip(s_c, axis=1))
     free_vars = np.flip(free_vars)
     dgf = pd.read_csv(test_dir / "priors.csv", index_col=1)["loc"]
-    exchange_rxns = S.columns.str.contains("SK_") | S.columns.str.contains("EX_")
+    exchange_rxns = S.columns.str.contains("SK_") | S.columns.str.contains(
+        "EX_"
+    )
     n_internal = (~exchange_rxns).sum()
     params = []
     for i in range(1000):
@@ -126,8 +143,15 @@ def find_params(test_dir):
             param = chain.from_iterable([dgf, c, b, e, v, dgr])
             params.append(param)
     columns = chain.from_iterable(
-        [namevec("dgf", dgf), namevec("c", c), namevec("b", b), namevec("e", e), namevec("v", v),
-         namevec("dgr", dgr)])
+        [
+            namevec("dgf", dgf),
+            namevec("c", c),
+            namevec("b", b),
+            namevec("e", e),
+            namevec("v", v),
+            namevec("dgr", dgr),
+        ]
+    )
     return pd.DataFrame(params, columns=list(columns))
 
 

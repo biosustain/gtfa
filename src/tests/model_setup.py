@@ -5,14 +5,18 @@ from pathlib import Path
 
 import pandas as pd
 import pytest
-from cobra import Model, Metabolite, Reaction
+from cobra import Metabolite, Model, Reaction
 from cobra.io import load_model
 from multitfa.core import tmodel
 
 from src import model_conversion
 
 logger = logging.getLogger(__name__)
-formatter = logging.Formatter('%(asctime)s | %(name)s | %(levelname)s | %(message)s')
+formatter = logging.Formatter(
+    "%(asctime)s | %(name)s | %(levelname)s | %(message)s"
+)
+
+
 @pytest.fixture
 def ecoli_model():
     # Make sure that logging print statements still work
@@ -48,12 +52,21 @@ def model_small():
     result_dir.mkdir()
     model_conversion.write_model_files(tmodel, test_dir)
     # We need at least one measurment
-    header = pd.DataFrame(columns=["measurement_type","target_id","condition_id","measurement","error_scale"],
-                          data=[["mic", "f6p_c", "condition_1", 1.2, 0.1]])
+    header = pd.DataFrame(
+        columns=[
+            "measurement_type",
+            "target_id",
+            "condition_id",
+            "measurement",
+            "error_scale",
+        ],
+        data=[["mic", "f6p_c", "condition_1", 1.2, 0.1]],
+    )
     header.to_csv(test_dir / "measurements.csv", index=False)
     yield tmodel
     # Clean up
     shutil.rmtree(test_dir)
+
 
 def build_small_test_model():
     """
@@ -61,18 +74,27 @@ def build_small_test_model():
     :return:
     """
     model = Model("small_toy")
-    model.add_metabolites([
-        Metabolite(id="f6p_c", name="Fructose 6 phosphate", compartment="c"),
-        Metabolite(id="g6p_c", name="Glucose 6 phosphate", compartment="c"),
-        Metabolite(id="f1p_c", name="Fructose 1 phosphate", compartment="c"),
-        Metabolite(id="g1p_c", name="Glucose 1 phosphate", compartment="c")
-    ])
-    model.add_reactions([Reaction("g6p/g1p"),
-                         Reaction("g1p/f1p"),
-                         Reaction("f1p/f6p"),
-                         Reaction("f6p/g6p"),
-                         Reaction("f6p/g1p"),
-                         ])
+    model.add_metabolites(
+        [
+            Metabolite(
+                id="f6p_c", name="Fructose 6 phosphate", compartment="c"
+            ),
+            Metabolite(id="g6p_c", name="Glucose 6 phosphate", compartment="c"),
+            Metabolite(
+                id="f1p_c", name="Fructose 1 phosphate", compartment="c"
+            ),
+            Metabolite(id="g1p_c", name="Glucose 1 phosphate", compartment="c"),
+        ]
+    )
+    model.add_reactions(
+        [
+            Reaction("g6p/g1p"),
+            Reaction("g1p/f1p"),
+            Reaction("f1p/f6p"),
+            Reaction("f6p/g6p"),
+            Reaction("f6p/g1p"),
+        ]
+    )
     # Add the reactions
     # Add the stoichiometry
     model.reactions[0].build_reaction_from_string("g6p_c <--> g1p_c"),
@@ -81,10 +103,14 @@ def build_small_test_model():
     model.reactions[3].build_reaction_from_string("f6p_c <--> g6p_c"),
     model.reactions[4].build_reaction_from_string("f6p_c <--> g1p_c")
     # Boundary reactions
-    model.add_boundary(model.metabolites.get_by_id("g6p_c"), type="sink", lb=1, ub=1)
+    model.add_boundary(
+        model.metabolites.get_by_id("g6p_c"), type="sink", lb=1, ub=1
+    )
     model.add_boundary(model.metabolites.get_by_id("f1p_c"), type="exchange")
     # Make the compartment info
-    compartment_info = pd.DataFrame([[7.5, 0.25, 298.15]], index=["c"], columns=["pH", "I", "T"])
+    compartment_info = pd.DataFrame(
+        [[7.5, 0.25, 298.15]], index=["c"], columns=["pH", "I", "T"]
+    )
     thermo_model = tmodel(model, compartment_info=compartment_info)
     # Add the KEGG ids
     thermo_model.metabolites[0].Kegg_id = "kegg:C00085"
@@ -93,6 +119,7 @@ def build_small_test_model():
     thermo_model.metabolites[3].Kegg_id = "kegg:C00103"
 
     return thermo_model
+
 
 ####### Taken directly from multitfa load_test_model
 def build_test_model():
@@ -115,11 +142,16 @@ def build_test_model():
         "H2Ot",
     ]
     tfa_model = tmodel(
-        model, Exclude_list=Excl, compartment_info=comp_info, membrane_potential=del_psi
+        model,
+        Exclude_list=Excl,
+        compartment_info=comp_info,
+        membrane_potential=del_psi,
     )
     for met in tfa_model.metabolites:
         kegg_id = "bigg.metabolite:" + met.id[:-2]
         met.Kegg_id = kegg_id
     tfa_model.update()
     return tfa_model
+
+
 ########## End of direct copy
