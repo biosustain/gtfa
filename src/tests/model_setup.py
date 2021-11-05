@@ -49,7 +49,7 @@ def model_small():
     model_conversion.write_model_files(tmodel, test_dir)
     # We need at least one measurment
     header = pd.DataFrame(columns=["measurement_type","target_id","condition_id","measurement","error_scale"],
-                          data=[["mic", "f6p_c", "condition_1", 1.2, 0.1]])
+                          data=[["mic", "f6p_c", "condition_1", 0.001, 0.1]])
     header.to_csv(test_dir / "measurements.csv", index=False)
     yield tmodel
     # Clean up
