@@ -13,9 +13,9 @@ INFDS = $(shell find results/infd -type f -not -name "*.md" | $(QUOTE_LINES))
 LOOS = $(shell find results/loo -type f -not -name "*.md" | $(QUOTE_LINES))
 JSONS = $(shell find results/input_data_json -type f -not -name "*.md" | $(QUOTE_LINES))
 # Report
-LATEX_FILE = report/proposal.tex
+LATEX_FILE = report/final_report.tex
 BIBLIOGRAPHY = report/bibliography.bib
-PDF_FILE = report/proposal.pdf
+PDF_FILE = report/final_report.pdf
 
 $(PDF_FILE): $(LATEX_FILE) $(BIBLIOGRAPHY)
 # The use-make option will probably help here later to enforce the dependencies properly with figures etc.
