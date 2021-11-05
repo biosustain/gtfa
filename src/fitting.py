@@ -27,6 +27,9 @@ def stan_input_from_dir(data_folder: Path, order=None, likelihood=False):
     return get_stan_input(measurements, S, priors, priors_cov, likelihood, order)
 
 
+def stan_input_from_config(config: ModelConfiguration):
+    return stan_input_from_dir(config.data_folder, config.order, config.likelihood)
+
 def generate_samples(config: ModelConfiguration) -> None:
     """Run cmdstanpy.CmdStanModel.sample, do diagnostics and save results.
 
@@ -35,18 +38,18 @@ def generate_samples(config: ModelConfiguration) -> None:
     logger.info(f"Fitting model configuration {config.name}...")
     infd_file = config.result_dir / "infd.nc"
     json_file = config.result_dir / "input_data.json"
-    priors = pd.read_csv(config.data_folder / "priors.csv")
-    priors_cov = pd.read_csv(config.data_folder / "priors_cov.csv", index_col=0)
-    measurements = pd.read_csv(config.data_folder / "measurements.csv")
-    S = pd.read_csv(config.data_folder / "stoichiometry.csv", index_col="metabolite")
-    stan_input = get_stan_input(measurements, S, priors, priors_cov, config.likelihood, config.order)
+    stan_input = stan_input_from_config(config)
     logger.info(f"Writing input data to {json_file}")
     jsondump(str(json_file), stan_input)
-    mcmc = run_stan(config, stan_input)
+    mcmc = run_stan(config)
+    # Write the files
+    measurements = pd.read_csv(config.data_folder / "measurements.csv")
+    S = pd.read_csv(config.data_folder / "stoichiometry.csv", index_col="metabolite")
     write_files(S, config, infd_file, mcmc, measurements)
 
 
-def run_stan(config, stan_input):
+def run_stan(config):
+    stan_input = stan_input_from_config(config)
     model = CmdStanModel(
         model_name=config.name, stan_file=str(config.stan_file)
     )
@@ -64,10 +67,15 @@ def run_stan(config, stan_input):
 
 def write_files(S, config, infd_file, mcmc, measurements):
     logger.info(mcmc.diagnose().replace("\n\n", "\n"))
+    infd = get_infd(S, config, mcmc, measurements)
+    logger.info(az.summary(infd))
+    logger.info(f"Writing inference data to {infd_file}")
+    infd.to_netcdf(str(infd_file))
+
+
+def get_infd(S, config, mcmc, measurements):
     infd_kwargs = get_infd_kwargs(S, measurements, config.order, config.sample_kwargs)
     infd = az.from_cmdstan(
         mcmc.runset.csv_files, **infd_kwargs
     )
-    logger.info(az.summary(infd))
-    logger.info(f"Writing inference data to {infd_file}")
-    infd.to_netcdf(str(infd_file))
+    return infd
