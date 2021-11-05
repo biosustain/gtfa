@@ -1,4 +1,5 @@
 """Get an input to cmdstanpy.CmdStanModel.sample from a pd.DataFrame."""
+import itertools
 import logging
 import re
 from dataclasses import dataclass
@@ -40,6 +41,13 @@ class IndPrior2d:
     location: pd.DataFrame
     scale: pd.DataFrame
 
+    def to_dataframe(self, measurement_type):
+        location = self.location.unstack()
+        scale = self.scale.unstack()
+        df = pd.concat([location, scale], axis=1).reset_index()
+        df.columns = ["parameter", "condition_id", "loc", "scale"]
+        df["measurement_type"] = measurement_type
+        return df
 
 def extract_prior_1d(
     parameter: str,
@@ -204,6 +212,10 @@ def get_stan_input(
     prior_enzyme = extract_prior_2d("internal_names", priors, coords["internal_names"], coords["condition"], DEFAULT_ENZ_CONC_MEAN, DEFAULT_ENZ_CONC_SCALE)
     prior_met_conc_free = extract_prior_2d("metabolite", priors, free_met_conc, coords["condition"], DEFAULT_MET_CONC_MEAN, DEFAULT_MET_CONC_SCALE)
     prior_exchange_free = extract_prior_2d("exchange", priors, free_exchange, coords["condition"], DEFAULT_EXCHANGE_MEAN, DEFAULT_EXCHANGE_SCALE)
+    # Add the fixed priors to the measurements
+    fixed_exchange_prior_df, fixed_met_prior_df = fixed_prior_to_measurements(coords, priors)
+    measurements_by_type["mic"] = measurements_by_type["mic"].append(fixed_met_prior_df)
+    measurements_by_type["flux"] = measurements_by_type["flux"].append(fixed_exchange_prior_df)
     # We're going to assume full prior information on dgf
     prior_dgf_mean = priors[priors["parameter"] == "dgf"]["loc"]
     if len(prior_dgf_mean) != S.shape[0]:
@@ -274,6 +286,25 @@ def get_stan_input(
         # config
         "likelihood": int(likelihood),
     }
+
+
+def fixed_prior_to_measurements(coords, priors):
+    """
+    Convert the fixed exchange and met conc priors to measurements.
+    """
+    fixed_exchange = get_name_ordered_overlap(coords, "reaction_ind", ["exchange", "fixed_x_names"])
+    fixed_met_conc = get_name_ordered_overlap(coords, "metabolite_ind", ["metabolite", "fixed_x_names"])
+    prior_met_conc_fixed = extract_prior_2d("metabolite", priors, fixed_met_conc, coords["condition"],
+                                            DEFAULT_MET_CONC_MEAN, DEFAULT_MET_CONC_SCALE)
+    prior_exchange_fixed = extract_prior_2d("exchange", priors, fixed_exchange, coords["condition"],
+                                            DEFAULT_EXCHANGE_MEAN, DEFAULT_EXCHANGE_SCALE)
+    # Expand the IndPrior2d to the pandas dataframe format
+    fixed_met_prior_df = prior_met_conc_fixed.to_dataframe("mic").rename(
+        columns={"parameter": "target_id", "loc": "measurement", "scale": "error_scale"})
+    fixed_met_prior_df["measurement"] = np.exp(fixed_met_prior_df["measurement"])
+    fixed_exchange_prior_df = prior_exchange_fixed.to_dataframe("flux").rename(
+        columns={"parameter": "target_id", "loc": "measurement", "scale": "error_scale"})
+    return fixed_exchange_prior_df, fixed_met_prior_df
 
 
 def get_name_ordered_overlap(coords: {}, order_by: str, name_list: [str]) -> [int]:
