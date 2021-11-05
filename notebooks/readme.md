@@ -1,0 +1,1 @@
+This folder contains jupyter notebooks of more informal analyses performed.
