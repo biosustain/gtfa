@@ -32,24 +32,23 @@ def check_input(config_files):
         sys.exit(2)
 
 
-def run_configs(configs):
-    for config in configs:
-        # If this config is for development only then clear out any previous results
-        this_results_dir = RESULTS_DIR / config.name
-        if config.devel:
-            if this_results_dir.exists():
-                shutil.rmtree(this_results_dir)
-        else:
-            # Experimental configurations store all runs with the datetime of the run
-            this_results_dir = this_results_dir / datetime.now().strftime("%Y%m%d%H%M%S")
-        this_results_dir.mkdir()
-        config.result_dir = this_results_dir
-        # Set up logging
-        setup_logging(config)
-        generate_samples(config)
-        # Generate the analysis files
-        if config.analyse:
-            analyse(config)
+def run_config(config):
+    # If this config is for development only then clear out any previous results
+    this_results_dir = RESULTS_DIR / config.name
+    if config.devel:
+        if this_results_dir.exists():
+            shutil.rmtree(this_results_dir)
+    else:
+        # Experimental configurations store all runs with the datetime of the run
+        this_results_dir = this_results_dir / datetime.now().strftime("%Y%m%d%H%M%S")
+    this_results_dir.mkdir()
+    config.result_dir = this_results_dir
+    # Set up logging
+    setup_logging(config)
+    generate_samples(config)
+    # Generate the analysis files
+    if config.analyse:
+        analyse(config)
 
 
 
@@ -58,4 +57,5 @@ if __name__ == "__main__":
     args = sys.argv[1:]
     check_input(args)
     configs = [load_model_configuration(filename) for filename in args]
-    run_configs(configs)
+    for config in configs:
+        run_config(config)
