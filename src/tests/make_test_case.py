@@ -8,6 +8,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import sympy
 
 from src.pandas_to_cmdstanpy import reorder_s
 from src.util import get_free_fluxes
@@ -119,6 +120,7 @@ def find_params(test_dir):
         e = np.exp(np.random.randn(n_internal) * 2 - 8)
         v, c = calc_fixed(S, b, e, np.log(c_free), t_free, dgf, free_vars)
         dgr = S.loc[:, ~exchange_rxns].T @ (dgf + RT * c)
+        # Check for reasonable values of all parameters (including the fixed params)
         c_range = (c > -11) & (c < -5)
         b_range = (np.log(b) > -4) & (np.log(b) < 8)
         e_range = (np.log(e) > -11) & (np.log(e) < -5)
@@ -131,9 +133,39 @@ def find_params(test_dir):
     return pd.DataFrame(params, columns=list(columns))
 
 
+def m_ind(mask):
+    """ Convert the mask into a list of integers that sympy can handle"""
+    return np.arange(len(mask))[mask].tolist()
+
+def sym_algrebra_solve(S, free_vars):
+    exchange_rxns = S.columns.str.contains("SK_") | S.columns.str.contains("EX_")
+    S_sym = sympy.Matrix(S)
+    n_mets, n_rxns = S.shape
+    n_exchange = exchange_rxns.sum()
+    s_x = np.zeros((n_rxns, n_exchange + n_mets))
+    s_x[:n_exchange, :n_exchange] = np.identity(n_exchange)
+    s_x[n_exchange:, n_exchange:] = S.loc[:, ~exchange_rxns].T
+    S_x_sym = sympy.Matrix(s_x)
+    b1, b2, b3, b4, b5 = sympy.symbols("b1 b2 b3 b4 b5")
+    S_x_sym[2, :] = S_x_sym[2, :] * b1
+    S_x_sym[3, :] = S_x_sym[3, :] * b2
+    S_x_sym[4, :] = S_x_sym[4, :] * b3
+    S_x_sym[5, :] = S_x_sym[5, :] * b4
+    S_x_sym[6, :] = S_x_sym[6, :] * b5
+    s_c_sym = S_sym @ S_x_sym
+    s_fi_sym = s_c_sym[:, m_ind(~free_vars)]
+    s_fi_inv = s_fi_sym.inv()
+    s_fr_sym = s_c_sym[:, m_ind(free_vars)]
+    x_fr = sympy.symbols("t1 c1")
+    x_fr = sympy.Matrix(x_fr)
+    x_fi = s_fi_inv @ -s_fr_sym @ x_fr
+    jacobian = x_fi.jacobian([b1, b2, b3, b4, b5, x_fr[0], x_fr[1]])
+    # TODO: Contine to solve the
+
 if __name__ == "__main__":
     "./data/fake/simulation_study"
     test_dir = Path(sys.argv[1])
+    print(test_dir.absolute())
     if not test_dir.exists():
         logger.error("The given directory doesn't exist")
         sys.exit()
