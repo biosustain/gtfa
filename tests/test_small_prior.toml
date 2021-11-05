@@ -1,6 +1,6 @@
 # Change files here during the development process
 name = "small_test"
-stan_file = "../stan/model_conc.stan"
+stan_file = "../src/stan/model_conc.stan"
 data_folder = "test_dir"
 likelihood = false
 devel = false
