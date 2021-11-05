@@ -19,12 +19,12 @@ from .cmdstanpy_to_arviz import get_infd_kwargs
 logger = logging.getLogger(__name__)
 
 
-def stan_input_from_dir(data_folder: Path, likelihood=False):
+def stan_input_from_dir(data_folder: Path, order=None, likelihood=False):
     priors = pd.read_csv(data_folder / "priors.csv")
     priors_cov = pd.read_csv(data_folder / "priors_cov.csv", index_col=0)
     measurements = pd.read_csv(data_folder / "measurements.csv")
     S = pd.read_csv(data_folder / "stoichiometry.csv", index_col="metabolite")
-    return get_stan_input(measurements, S, priors, priors_cov, likelihood)
+    return get_stan_input(measurements, S, priors, priors_cov, likelihood, order)
 
 
 def generate_samples(config: ModelConfiguration) -> None:
@@ -42,6 +42,11 @@ def generate_samples(config: ModelConfiguration) -> None:
     stan_input = get_stan_input(measurements, S, priors, priors_cov, config.likelihood, config.order)
     logger.info(f"Writing input data to {json_file}")
     jsondump(str(json_file), stan_input)
+    mcmc = run_stan(config, stan_input)
+    write_files(S, config, infd_file, mcmc, measurements)
+
+
+def run_stan(config, stan_input):
     model = CmdStanModel(
         model_name=config.name, stan_file=str(config.stan_file)
     )
@@ -54,6 +59,10 @@ def generate_samples(config: ModelConfiguration) -> None:
         output_dir=str(sample_dir),
         **config.sample_kwargs,
     )
+    return mcmc
+
+
+def write_files(S, config, infd_file, mcmc, measurements):
     logger.info(mcmc.diagnose().replace("\n\n", "\n"))
     infd_kwargs = get_infd_kwargs(S, measurements, config.order, config.sample_kwargs)
     infd = az.from_cmdstan(
