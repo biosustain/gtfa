@@ -43,6 +43,7 @@ class ModelConfiguration:
     sample_kwargs: Dict
     analyse: dict
     likelihood: bool
+    order: list = None
     result_dir: Path = Path("empty")
     devel: bool = True
     disp_plot: bool = True
@@ -65,7 +66,8 @@ def load_model_configuration(path: str) -> ModelConfiguration:
         sample_kwargs=d.get("sample_kwargs"),
         analyse=d.get("analyse"),
         devel=d.get("devel"),
-        verbose=d.get("verbose")
+        verbose=d.get("verbose"),
+        order=d.get("order")
     )
     validate_model_configuration(mc)
     return mc

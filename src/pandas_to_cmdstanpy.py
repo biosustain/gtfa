@@ -100,27 +100,35 @@ def get_exchange_rxns(S):
     return S.columns.str.contains("|".join(EXCHANGE_NAMES))
 
 
-def get_coords(S: pd.DataFrame, measurements: pd.DataFrame):
+def get_coords(S: pd.DataFrame, measurements: pd.DataFrame, order=None):
     # Make sure they are protected for the regular expression
     is_exchange = get_exchange_rxns(S)
     assert is_exchange[:is_exchange.sum()].sum() == is_exchange.sum(), "Exchange reactions should always be in the" \
                                                                           " leftmost columns"
+    base_ordering = S.columns[is_exchange].to_series().append(S.index.to_series())
+    if order is None:
+        order = base_ordering
+    else:
+        # Push the ordered columns to the front and fill in the rest
+        order = pd.Series(order, index=order)
+        order = order.append(base_ordering.drop(order))
     exchanges = S.columns[is_exchange]
     internals = S.columns[~is_exchange]
     num_met, num_rxn = S.shape
     num_ex = is_exchange.sum()
     # Calculate the final matrix and the free variables
     s_gamma = S.T[~is_exchange]
-    s_gamma_mod = np.zeros((num_rxn, num_met + num_ex))
-    s_gamma_mod[:num_ex, :num_ex] = np.identity(num_ex)
-    s_gamma_mod[num_ex:, num_ex:] = s_gamma.to_numpy()
+    s_gamma_mod = pd.DataFrame(0, columns=base_ordering, index=S.columns)
+    s_gamma_mod.iloc[:num_ex, :num_ex] = np.identity(num_ex)
+    s_gamma_mod.iloc[num_ex:, num_ex:] = s_gamma.to_numpy()
     s_total = S @ s_gamma_mod
+    # Reorder the columns according the the given ordering
+    s_total = s_total.loc[:, order]
     free_x_ind, _ = get_free_fluxes(s_total.to_numpy())
-    # This biases the model towards more fixed exchange reactions
-    free_x_ind, _ = get_free_fluxes(np.flip(s_total.to_numpy(), axis=1))
-    free_x_ind = np.flip(free_x_ind)
+    # Revert back to original ordering
+    free_x_ind = free_x_ind[order.index.get_indexer(base_ordering)]
     # Get the fixed and free x values
-    x_names = pd.Series(exchanges.tolist() + S.index.tolist())
+    x_names = base_ordering
     free_x_names = x_names[free_x_ind]
     fixed_x_names = x_names[~free_x_ind]
     # A list of indices for each free x
@@ -155,6 +163,7 @@ def get_coords(S: pd.DataFrame, measurements: pd.DataFrame):
         "fixed_x": list(fixed_x),
     }
 
+
 def reorder_s(S):
     exchange_reactions = get_exchange_rxns(S)
     ordered = pd.concat([pd.Series(S.columns[exchange_reactions]), pd.Series(S.columns[~exchange_reactions])])
@@ -187,7 +196,7 @@ def get_stan_input(
     priors: pd.DataFrame,
     priors_cov: pd.DataFrame,
     likelihood: bool,
-) -> Dict:
+    order=None) -> Dict:
     """Get an input to cmdstanpy.CmdStanModel.sample.
 
     :param measurements: a pandas DataFrame whose rows represent measurements
@@ -205,7 +214,7 @@ def get_stan_input(
         if t not in measurements_by_type:
             logger.warning(f"No {t} measurements provided.")
             measurements_by_type[t] = pd.DataFrame(columns=measurements.columns)
-    coords = get_coords(S, measurements)
+    coords = get_coords(S, measurements, order)
     free_exchange = get_name_ordered_overlap(coords, "reaction_ind", ["exchange", "free_x_names"])
     free_met_conc = get_name_ordered_overlap(coords, "metabolite_ind", ["metabolite", "free_x_names"])
     prior_b = extract_prior_2d("b", priors, coords["internal_names"], coords["condition"], DEFAULT_B_MEAN, DEFAULT_B_SCALE)

@@ -2,11 +2,13 @@
 
 from typing import List, Dict
 import pandas as pd
+
+from .model_configuration import ModelConfiguration
 from .pandas_to_cmdstanpy import get_coords, reorder_s
 
 
 def get_infd_kwargs(
-    S: pd.DataFrame, measurements: pd.DataFrame, sample_kwargs: Dict
+    S: pd.DataFrame, measurements: pd.DataFrame, order, sample_kwargs: Dict
 ) -> Dict:
     """Get a dictionary of keyword arguments to arviz.from_cmdstanpy."""
     if "save_warmup" in sample_kwargs.keys():
@@ -14,7 +16,7 @@ def get_infd_kwargs(
     else:
         save_warmup = True
     return dict(
-        coords=get_coords(reorder_s(S), measurements),
+        coords=get_coords(reorder_s(S), measurements, order=order),
         dims={
             # Free parameters
             "b": ["condition", "internal_names"],
