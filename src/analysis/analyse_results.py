@@ -40,5 +40,5 @@ def analyse(config):
     if config.analyse.get("pair", False):
         pair_plots(config, idata, save=save_plots)
     if config.analyse.get("dens", False):
-        az.plot_density(idata, var_names=["log_metabolite", "b", "flux", "log_enzyme"])
+        az.plot_density(idata, var_names=["log_metabolite", "b", "flux", "log_enzyme", "dgf", "dgr"])
         plt.show()
