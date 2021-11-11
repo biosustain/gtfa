@@ -1,0 +1,18 @@
+# Change files here during the development process
+name = "notebook_base"
+stan_file = "../src/stan/model_conc.stan"
+data_folder = "../data/fake/simulation_study"
+result_dir = "./samples"
+likelihood = false
+devel = false
+analyse = false
+[sample_kwargs]
+chains = 2
+parallel_chains = 2
+sig_figs = 18
+show_progress = true
+iter_warmup = 10
+iter_sampling = 10
+max_treedepth = 12
+adapt_delta = 0.90
+refresh = 1
