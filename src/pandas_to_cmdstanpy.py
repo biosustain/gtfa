@@ -103,20 +103,11 @@ def get_exchange_rxns(S):
 def get_coords(S: pd.DataFrame, measurements: pd.DataFrame, order=None):
     # Make sure they are protected for the regular expression
     is_exchange = get_exchange_rxns(S)
-    assert is_exchange[:is_exchange.sum()].sum() == is_exchange.sum(), "Exchange reactions should always be in the" \
-                                                                          " leftmost columns"
     base_ordering = S.columns[is_exchange].to_series().append(S.index.to_series())
-    if order is None:
-        order = base_ordering
-    else:
-        # Push the ordered columns to the front and fill in the rest
-        order = pd.Series(order, index=order)
-        order = order.append(base_ordering.drop(order))
     exchanges = S.columns[is_exchange]
     internals = S.columns[~is_exchange]
-    num_met, num_rxn = S.shape
     num_ex = is_exchange.sum()
-    free_x_ind = get_free_x(S, base_ordering, order)
+    free_x_ind = get_free_x(S, order)
     # Get the fixed and free x values
     x_names = base_ordering
     free_x_names = x_names[free_x_ind]
@@ -154,28 +145,40 @@ def get_coords(S: pd.DataFrame, measurements: pd.DataFrame, order=None):
     }
 
 
-def get_free_x(S, base_ordering, order):
+def get_free_x(S, order):
+    """
+    Get the free x values of the corresponding S_c matrix.
+    :param S: The stoichiometric matrix
+    :param order: A list of x values in the desired order from free to fixed. If the list is incomplete then the rest of the
+    x values will be filled.
+    :return:
+    """
+    # Determine the exchange reactions
     is_exchange = get_exchange_rxns(S)
+    exchange_names = S.columns[is_exchange]
+    base_ordering = S.columns[is_exchange].to_series().append(S.index.to_series())
+    met_names = base_ordering[~base_ordering.isin(exchange_names)]
+    # Convert an incomplete ordering into a full ordering
+    if order is None:
+        order = base_ordering
+    else:
+        # Push the ordered columns to the front and fill in the rest
+        order = pd.Series(order, index=order)
+        order = order.append(base_ordering.drop(order))
+        # Now reverse the order to put the "freest" variables on the right
+        order = order.iloc[::-1]
     num_ex = is_exchange.sum()
     # Calculate the final matrix and the free variables
-    s_gamma = S.T[~is_exchange]
-    s_gamma_mod = pd.DataFrame(0, columns=base_ordering, index=S.columns)
-    s_gamma_mod.iloc[:num_ex, :num_ex] = np.identity(num_ex)
-    s_gamma_mod.iloc[num_ex:, num_ex:] = s_gamma.to_numpy()
-    s_total = S @ s_gamma_mod
+    s_x = pd.DataFrame(0, columns=base_ordering, index=S.columns)
+    s_x.loc[exchange_names, exchange_names] = np.identity(num_ex)
+    s_x.loc[~is_exchange, met_names] = S.T[~is_exchange].to_numpy()
+    s_total = S @ s_x
     # Reorder the columns according the the given ordering
     s_total = s_total.loc[:, order]
     free_x_ind, _ = get_free_fluxes(s_total.to_numpy())
     # Revert back to original ordering
     free_x_ind = free_x_ind[order.index.get_indexer(base_ordering)]
-    return free_x_ind
-
-
-def reorder_s(S):
-    exchange_reactions = get_exchange_rxns(S)
-    ordered = pd.concat([pd.Series(S.columns[exchange_reactions]), pd.Series(S.columns[~exchange_reactions])])
-    S = S.loc[:, ordered]
-    return S
+    return pd.Series(free_x_ind, index=base_ordering)
 
 
 def check_input(measurements, priors):
@@ -213,8 +216,6 @@ def get_stan_input(
 
     """
     check_input(measurements, priors)
-    # Reorder the input stoichiometric matrix to put any exchange reactions on the left
-    S = reorder_s(S)
     # Make a dictionary based on the observation type
     measurements_by_type = dict(measurements.groupby("measurement_type").__iter__())
     for t in ["mic", "flux", "enzyme"]:

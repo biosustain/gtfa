@@ -10,7 +10,6 @@ import numpy as np
 import pandas as pd
 import sympy
 
-from src.pandas_to_cmdstanpy import reorder_s
 from src.util import get_free_fluxes
 
 RT = 0.008314 * 298.15
@@ -101,7 +100,6 @@ def find_params(test_dir):
     # Now write the measurements to file
     result_dir = test_dir / "results"
     S = pd.read_csv(test_dir / "stoichiometry.csv", index_col=0)
-    S = reorder_s(S)
     exchange_rxns = S.columns.str.contains("SK_") | S.columns.str.contains("EX_")
     # Get the free and fixed fluxes
     n_internal = (~exchange_rxns).sum()

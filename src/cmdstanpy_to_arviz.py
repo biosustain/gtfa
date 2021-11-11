@@ -4,7 +4,7 @@ from typing import List, Dict
 import pandas as pd
 
 from .model_configuration import ModelConfiguration
-from .pandas_to_cmdstanpy import get_coords, reorder_s
+from .pandas_to_cmdstanpy import get_coords
 
 
 def get_infd_kwargs(
@@ -16,7 +16,7 @@ def get_infd_kwargs(
     else:
         save_warmup = True
     return dict(
-        coords=get_coords(reorder_s(S), measurements, order=order),
+        coords=get_coords(S, measurements, order=order),
         dims={
             # Free parameters
             "b": ["condition", "internal_names"],
