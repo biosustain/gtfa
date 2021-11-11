@@ -11,9 +11,9 @@ import numpy as np
 from cmdstanpy import CmdStanModel
 from cmdstanpy.utils import jsondump
 import pandas as pd
-from .model_configuration import ModelConfiguration
-from .pandas_to_cmdstanpy import get_stan_input
-from .cmdstanpy_to_arviz import get_infd_kwargs
+from src.model_configuration import ModelConfiguration
+from src.pandas_to_cmdstanpy import get_stan_input
+from src.cmdstanpy_to_arviz import get_infd_kwargs
 
 
 logger = logging.getLogger(__name__)

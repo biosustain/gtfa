@@ -116,17 +116,7 @@ def get_coords(S: pd.DataFrame, measurements: pd.DataFrame, order=None):
     internals = S.columns[~is_exchange]
     num_met, num_rxn = S.shape
     num_ex = is_exchange.sum()
-    # Calculate the final matrix and the free variables
-    s_gamma = S.T[~is_exchange]
-    s_gamma_mod = pd.DataFrame(0, columns=base_ordering, index=S.columns)
-    s_gamma_mod.iloc[:num_ex, :num_ex] = np.identity(num_ex)
-    s_gamma_mod.iloc[num_ex:, num_ex:] = s_gamma.to_numpy()
-    s_total = S @ s_gamma_mod
-    # Reorder the columns according the the given ordering
-    s_total = s_total.loc[:, order]
-    free_x_ind, _ = get_free_fluxes(s_total.to_numpy())
-    # Revert back to original ordering
-    free_x_ind = free_x_ind[order.index.get_indexer(base_ordering)]
+    free_x_ind = get_free_x(S, base_ordering, order)
     # Get the fixed and free x values
     x_names = base_ordering
     free_x_names = x_names[free_x_ind]
@@ -162,6 +152,23 @@ def get_coords(S: pd.DataFrame, measurements: pd.DataFrame, order=None):
         "free_x": list(free_x),
         "fixed_x": list(fixed_x),
     }
+
+
+def get_free_x(S, base_ordering, order):
+    is_exchange = get_exchange_rxns(S)
+    num_ex = is_exchange.sum()
+    # Calculate the final matrix and the free variables
+    s_gamma = S.T[~is_exchange]
+    s_gamma_mod = pd.DataFrame(0, columns=base_ordering, index=S.columns)
+    s_gamma_mod.iloc[:num_ex, :num_ex] = np.identity(num_ex)
+    s_gamma_mod.iloc[num_ex:, num_ex:] = s_gamma.to_numpy()
+    s_total = S @ s_gamma_mod
+    # Reorder the columns according the the given ordering
+    s_total = s_total.loc[:, order]
+    free_x_ind, _ = get_free_fluxes(s_total.to_numpy())
+    # Revert back to original ordering
+    free_x_ind = free_x_ind[order.index.get_indexer(base_ordering)]
+    return free_x_ind
 
 
 def reorder_s(S):
