@@ -1,9 +1,10 @@
 """Definition of the ModelConfiguration class."""
+import dataclasses
 import logging
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from pathlib import Path
-from typing import Callable, Dict
+from typing import Callable, Dict, Any
 import pandas as pd
 import toml
 
@@ -49,6 +50,13 @@ class ModelConfiguration:
     disp_plot: bool = True
     save_plot: bool = False
     verbose: bool = True
+
+    def __post_init__(self):
+        # Loop through the fields
+        for field in fields(self):
+            # If there is a default and the value of the field is none we can assign a value
+            if not isinstance(field.default, dataclasses._MISSING_TYPE) and getattr(self, field.name) is None:
+                setattr(self, field.name, field.default)
 
 
 def load_model_configuration(path: str) -> ModelConfiguration:
