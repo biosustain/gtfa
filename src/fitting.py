@@ -33,7 +33,7 @@ def stan_input_from_config(config: ModelConfiguration):
 def generate_samples(config: ModelConfiguration) -> None:
     """Run cmdstanpy.CmdStanModel.sample, do diagnostics and save results.
 
-    :param study_name: a string
+    :param config: the model configuration
     """
     logger.info(f"Fitting model configuration {config.name}...")
     infd_file = config.result_dir / "infd.nc"
