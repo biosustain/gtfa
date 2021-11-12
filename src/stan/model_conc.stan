@@ -79,9 +79,9 @@ data {
 transformed data {
     // The combined matrix for exchange reactions and concentrations
     matrix[N_reaction, N_metabolite + N_exchange] s_gamma = rep_matrix(0, N_reaction, N_metabolite + N_exchange);
-    vector[N_exchange] diag_vals = rep_vector(1, N_exchange);
-    s_gamma[:N_exchange, :N_exchange] = diag_matrix(diag_vals);
-    s_gamma[N_exchange+1:, N_exchange+1:] = S'[ix_internal_to_rxn];
+    vector[N_exchange] ones = rep_vector(1, N_exchange);
+    s_gamma[ix_ex_to_rxn, ix_ex_to_x] = diag_matrix(ones);
+    s_gamma[ix_internal_to_rxn, ix_met_to_x] = S'[ix_internal_to_rxn];
     //// Some extra indices for convenience
     // Directly from free and fixed metabolites and exchange rxns to the x vector
     array[N_free_met_conc] int<lower=1, upper=N_x> ix_free_met_to_x = ix_free_to_x[ix_free_met_to_free];
