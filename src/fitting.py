@@ -65,11 +65,11 @@ def run_stan(config):
         output_dir=str(sample_dir),
         **config.sample_kwargs,
     )
+    logger.info(mcmc.diagnose().replace("\n\n", "\n"))
     return mcmc
 
 
 def write_files(S, config, infd_file, mcmc, measurements):
-    logger.info(mcmc.diagnose().replace("\n\n", "\n"))
     infd = get_infd(S, config, mcmc, measurements)
     logger.info(az.summary(infd))
     logger.info(f"Writing inference data to {infd_file}")
