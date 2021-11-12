@@ -1,4 +1,5 @@
 import logging
+import os
 import shutil
 import sys
 from datetime import datetime
@@ -8,7 +9,7 @@ from src.analysis.analyse_results import analyse
 from src.fitting import generate_samples
 from src.model_configuration import load_model_configuration
 
-RESULTS_DIR = Path("results")
+RESULTS_DIR = Path(__file__).parent / "results"
 logger = logging.getLogger()
 
 def setup_logging(config):
@@ -25,7 +26,7 @@ def setup_logging(config):
 
 def check_input(config_files):
     if not all(Path(p).exists() for p in config_files):
-        logger.critical("All arguments should be valid config files")
+        logger.critical("All arguments should be valid paths to config files")
         sys.exit(2)
     if len(config_files) == 0:
         logger.critical("At least one config file should be given")
@@ -39,6 +40,9 @@ def run_config(config):
         if this_results_dir.exists():
             shutil.rmtree(this_results_dir)
     else:
+        # Make sure the parent directory exists for the first run
+        if not this_results_dir.exists():
+            this_results_dir.mkdir()
         # Experimental configurations store all runs with the datetime of the run
         this_results_dir = this_results_dir / datetime.now().strftime("%Y%m%d%H%M%S")
     this_results_dir.mkdir()
@@ -53,6 +57,8 @@ def run_config(config):
 
 
 if __name__ == "__main__":
+    # Add the script directory to the path
+    sys.path.append(os.path.dirname(os.path.realpath(__file__)))
     # For now all arguments should just be valid paths
     args = sys.argv[1:]
     check_input(args)
