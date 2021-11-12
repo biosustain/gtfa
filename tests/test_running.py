@@ -1,7 +1,5 @@
 import os
 import shutil
-import subprocess
-import time
 from pathlib import Path
 import pytest
 
@@ -29,7 +27,7 @@ def test_run_cmdline():
     # Clean up if the results dir is still there
     if Path("../results/small_test").exists():
         shutil.rmtree("../results/small_test")
-    subprocess.Popen(["python", "../gtfa.py", "test_small_prior.toml"])
+    os.system("python ../gtfa.py test_small_prior.toml")
     # The results should be written to the results directory
     assert Path("../results/small_test").exists()
     assert len(list(Path("../results/small_test").iterdir())) == 1, "There should be a single folder in there"
