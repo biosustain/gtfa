@@ -49,6 +49,9 @@ def generate_samples(config: ModelConfiguration) -> None:
 
 
 def run_stan(config):
+    # Check the config
+    assert config.result_dir.exists(), f"Result directory {config.result_dir} does not exist"
+    assert config.result_dir != Path("empty"), "Results path should have been changed from the default"
     stan_input = stan_input_from_config(config)
     model = CmdStanModel(
         model_name=config.name, stan_file=str(config.stan_file)
