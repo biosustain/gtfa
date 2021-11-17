@@ -8,7 +8,7 @@ from .pandas_to_cmdstanpy import get_coords
 
 
 def get_infd_kwargs(
-    S: pd.DataFrame, measurements: pd.DataFrame, order, sample_kwargs: Dict
+    S: pd.DataFrame, measurements: pd.DataFrame, priors: pd.DataFrame, order, sample_kwargs: Dict
 ) -> Dict:
     """Get a dictionary of keyword arguments to arviz.from_cmdstanpy."""
     if "save_warmup" in sample_kwargs.keys():
@@ -16,7 +16,7 @@ def get_infd_kwargs(
     else:
         save_warmup = True
     return dict(
-        coords=get_coords(S, measurements, order=order),
+        coords=get_coords(S, measurements, priors, order=order),
         dims={
             # Free parameters
             "b": ["condition", "internal_names"],

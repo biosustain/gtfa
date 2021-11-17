@@ -100,7 +100,9 @@ def get_exchange_rxns(S):
     return S.columns.str.contains("|".join(EXCHANGE_NAMES))
 
 
-def get_coords(S: pd.DataFrame, measurements: pd.DataFrame, order=None):
+def get_coords(S: pd.DataFrame, measurements: pd.DataFrame, priors: pd.DataFrame, order=None):
+    if not type(priors) == pd.DataFrame:
+        raise RuntimeError("priors must be a dataframe")
     # Make sure they are protected for the regular expression
     is_exchange = get_exchange_rxns(S)
     base_ordering = S.columns[is_exchange].to_series().append(S.index.to_series())
@@ -124,6 +126,10 @@ def get_coords(S: pd.DataFrame, measurements: pd.DataFrame, order=None):
     conc_fixed = S.index[~conc_free_ind]
     reaction_ind_map = codify(S.columns)
     met_ind_map = codify(S.index)
+    # Get a list of all conditions
+    measurement_conditions = measurements["condition_id"]
+    prior_conditions = priors["condition_id"][~priors["condition_id"].isna()]
+    conditions = measurement_conditions.append(prior_conditions).unique()
     return {
         # Maps to stan indices
         "reaction_ind": reaction_ind_map,
@@ -139,7 +145,7 @@ def get_coords(S: pd.DataFrame, measurements: pd.DataFrame, order=None):
         "fixed_exchange": list(exchange_fixed),
         "free_met_conc": list(conc_free),
         "fixed_met_conc": list(conc_fixed),
-        "condition": list(measurements["condition_id"].unique()),
+        "condition": list(conditions),
         "free_x": list(free_x),
         "fixed_x": list(fixed_x),
     }
@@ -216,13 +222,8 @@ def get_stan_input(
 
     """
     check_input(measurements, priors)
-    # Make a dictionary based on the observation type
-    measurements_by_type = dict(measurements.groupby("measurement_type").__iter__())
-    for t in ["mic", "flux", "enzyme"]:
-        if t not in measurements_by_type:
-            logger.warning(f"No {t} measurements provided.")
-            measurements_by_type[t] = pd.DataFrame(columns=measurements.columns)
-    coords = get_coords(S, measurements, order)
+    coords = get_coords(S, measurements, priors, order)
+    measurements_by_type = group_measurement_types(likelihood, measurements)
     free_exchange = get_name_ordered_overlap(coords, "reaction_ind", ["exchange", "free_x_names"])
     free_met_conc = get_name_ordered_overlap(coords, "metabolite_ind", ["metabolite", "free_x_names"])
     prior_b = extract_prior_2d("b", priors, coords["internal_names"], coords["condition"], DEFAULT_B_MEAN, DEFAULT_B_SCALE)
@@ -268,7 +269,7 @@ def get_stan_input(
         "ix_free_ex_to_ex": make_index_map(coords, "exchange", ["exchange", "free_x_names"]),
         "ix_fixed_ex_to_ex": make_index_map(coords, "exchange", ["exchange", "fixed_x_names"]),
         # measurements
-        "N_condition": pd.concat([measurements["condition_id"], priors["condition_id"]]).nunique(),
+        "N_condition": len(coords["condition"]),
         "N_y_enzyme": len(measurements_by_type["enzyme"]),
         "N_y_metabolite": len(measurements_by_type["mic"]),
         "N_y_flux": len(measurements_by_type["flux"]),
@@ -300,9 +301,22 @@ def get_stan_input(
         "prior_b": [prior_b.location.values.tolist(), prior_b.scale.values.tolist()],
         "prior_free_met_conc": [prior_met_conc_free.location.values.tolist(),
                                 prior_met_conc_free.scale.values.tolist()],
-        # config
-        "likelihood": int(likelihood),
     }
+
+
+def group_measurement_types(likelihood, measurements):
+    # If likelihood is off, then remove the measurements
+    if not likelihood:
+        measurements = pd.DataFrame(columns=measurements.columns)
+    # Make a dictionary based on the observation type
+    measurements_by_type = dict(measurements.groupby("measurement_type").__iter__())
+    for t in ["mic", "flux", "enzyme"]:
+        if t not in measurements_by_type:
+            # Only warn if likelihood is on
+            if likelihood:
+                logger.warning(f"No {t} measurements provided.")
+            measurements_by_type[t] = pd.DataFrame(columns=measurements.columns)
+    return measurements_by_type
 
 
 def fixed_prior_to_measurements(coords, priors):

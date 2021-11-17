@@ -73,8 +73,6 @@ data {
   array[2, N_condition] vector[N_internal] prior_enzyme;
   array[2, N_condition] vector[N_internal] prior_b;
   array[2, N_condition] vector[N_free_met_conc] prior_free_met_conc;
-  // config
-  int<lower=0,upper=1> likelihood;
 }
 transformed data {
     // The combined matrix for exchange reactions and concentrations
@@ -150,25 +148,23 @@ model {
     exchange_free[c] ~ normal(prior_exchange_free[1, c], prior_exchange_free[2, c]);
   }
   //// Likelihood
-  if (likelihood == 1){
-    // Metabolite concentrations
-    for (n in 1:N_y_metabolite){
-      int c = condition_y_metabolite[n];
-      int m = metabolite_y_metabolite[n];
-      y_metabolite[n] ~ normal(log_metabolite[c, m], sigma_metabolite[n]);
-    }
-    // Enzyme concentrations
-    for (n in 1:N_y_enzyme){
-      int c = condition_y_enzyme[n];
-      int enz_ind = internal_y_enzyme[n];
-      y_enzyme[n] ~ normal(log_enzyme[c, enz_ind], sigma_enzyme[n]);
-    }
-    // Fluxes
-    for (n in 1:N_y_flux){
-      int c = condition_y_flux[n];
-      int r = reaction_y_flux[n];
-      y_flux[n] ~ normal(flux[c, r], sigma_flux[n]);
-    }
+  // Metabolite concentrations
+  for (n in 1:N_y_metabolite){
+    int c = condition_y_metabolite[n];
+    int m = metabolite_y_metabolite[n];
+    y_metabolite[n] ~ normal(log_metabolite[c, m], sigma_metabolite[n]);
+  }
+  // Enzyme concentrations
+  for (n in 1:N_y_enzyme){
+    int c = condition_y_enzyme[n];
+    int enz_ind = internal_y_enzyme[n];
+    y_enzyme[n] ~ normal(log_enzyme[c, enz_ind], sigma_enzyme[n]);
+  }
+  // Fluxes
+  for (n in 1:N_y_flux){
+    int c = condition_y_flux[n];
+    int r = reaction_y_flux[n];
+    y_flux[n] ~ normal(flux[c, r], sigma_flux[n]);
   }
 }
 

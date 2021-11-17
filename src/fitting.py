@@ -30,6 +30,7 @@ def stan_input_from_dir(data_folder: Path, order=None, likelihood=False):
 def stan_input_from_config(config: ModelConfiguration):
     return stan_input_from_dir(config.data_folder, config.order, config.likelihood)
 
+
 def generate_samples(config: ModelConfiguration) -> None:
     """Run cmdstanpy.CmdStanModel.sample, do diagnostics and save results.
 
@@ -44,8 +45,9 @@ def generate_samples(config: ModelConfiguration) -> None:
     mcmc = run_stan(config)
     # Write the files
     measurements = pd.read_csv(config.data_folder / "measurements.csv")
+    priors = pd.read_csv(config.data_folder / "priors.csv")
     S = pd.read_csv(config.data_folder / "stoichiometry.csv", index_col="metabolite")
-    write_files(S, config, infd_file, mcmc, measurements)
+    write_files(S, config, infd_file, mcmc, measurements, priors)
 
 
 def run_stan(config):
@@ -69,15 +71,15 @@ def run_stan(config):
     return mcmc
 
 
-def write_files(S, config, infd_file, mcmc, measurements):
-    infd = get_infd(S, config, mcmc, measurements)
+def write_files(S, config, infd_file, mcmc, measurements, priors):
+    infd = get_infd(S, config, mcmc, measurements, priors)
     logger.info(az.summary(infd))
     logger.info(f"Writing inference data to {infd_file}")
     infd.to_netcdf(str(infd_file))
 
 
-def get_infd(S, config, mcmc, measurements):
-    infd_kwargs = get_infd_kwargs(S, measurements, config.order, config.sample_kwargs)
+def get_infd(S, config, mcmc, measurements, priors):
+    infd_kwargs = get_infd_kwargs(S, measurements, priors, config.order, config.sample_kwargs)
     infd = az.from_cmdstan(
         mcmc.runset.csv_files, **infd_kwargs
     )

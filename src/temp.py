@@ -53,7 +53,8 @@ def run_standard_model():
     # TODO: Just run the standard one normally, not here
     # TODO: Continue here. ValueError: conflicting sizes for dimension 'condition': length 1 on the data but length 2 on coordinate 'condition'
     measurements = pd.read_csv(config.data_folder / "measurements.csv")
-    infd_kwargs = get_infd_kwargs(S, measurements, config.order, config.sample_kwargs)
+    priors = pd.read_csv(config.data_folder / "priors.csv")
+    infd_kwargs = get_infd_kwargs(S, measurements, priors, config.order, config.sample_kwargs)
     infd = az.from_cmdstan(
         mcmc.runset.csv_files, **infd_kwargs
     )
