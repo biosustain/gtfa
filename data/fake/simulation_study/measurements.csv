@@ -7,7 +7,7 @@ flux,g6p/g1p,condition_1,-0.9275499473602622,0.15
 flux,g1p/f1p,condition_1,-0.7989785015503799,0.15
 flux,f1p/f6p,condition_1,0.2010214984495633,0.15
 flux,f6p/g6p,condition_1,0.07245005263970583,0.15
-flux,f6p/g1p,condition_1,0.12857144580990365,0.15
+flux,f6p/g1p,condition_1,-0.12857144580990365,0.15
 flux,SK_g6p_c,condition_1,1.0,0.15
 flux,EX_f1p_c,condition_1,-1.0,0.15
 enzyme,g6p/g1p,condition_1,0.003641157529874064,0.1
