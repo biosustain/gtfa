@@ -22,6 +22,9 @@ data {
   int<lower=0> N_fixed_x;
   int<lower=1> N_x;
   //
+  int<lower=1> N_free_rows;
+  int<lower=0> N_fixed_rows;
+  //
   matrix[N_metabolite, N_reaction] S;
   //// Indexing - Some of these are not used but could be convenient later
   // Which elements of the free x are metabolites and which are exchange rxns
@@ -45,6 +48,10 @@ data {
   // Which exchange reactions are free and fixed
   array[N_free_exchange] int<lower=1, upper=N_exchange> ix_free_ex_to_ex;
   array[N_fixed_exchange] int<lower=1, upper=N_exchange> ix_fixed_ex_to_ex;
+  // Which rows of the S_c matrix are necesary for solving the system of
+  // linear equations.
+  array[N_free_rows] int<lower=1, upper=N_metabolite> ix_free_row_to_met;
+  array[N_fixed_rows] int<lower=1, upper=N_metabolite> ix_fixed_row_to_met;
   //// measurements
   int<lower=1> N_condition;
   int<lower=0> N_y_enzyme;
@@ -123,8 +130,13 @@ transformed parameters {
         x[cond][ix_free_ex_to_x] = exchange_free[cond];
     }
     x[cond][ix_free_met_to_x] = dgf[ix_free_met_to_met] + RT * log_metabolite_free[cond];
-    rhs = -s_c[:, ix_free_to_x] * x[cond][ix_free_to_x];
-    x[cond][ix_fixed_to_x] = s_c[:, ix_fixed_to_x] \ rhs;
+    rhs = -s_c[ix_free_row_to_met, ix_free_to_x] * x[cond][ix_free_to_x];
+    x[cond][ix_fixed_to_x] = s_c[ix_free_row_to_met, ix_fixed_to_x] \ rhs;
+    for (i in ix_fixed_to_x){
+      if (is_nan(x[cond][i])){
+        reject("The linear equations could not be solved");
+      }
+    }
     // Solve for the remaining log metabolite values
     log_metabolite[cond, ix_free_met_to_met] = log_metabolite_free[cond];
     log_metabolite[cond, ix_fixed_met_to_met] = (x[cond][ix_fixed_met_to_x] -

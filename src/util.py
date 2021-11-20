@@ -159,8 +159,6 @@ def get_free_fluxes(S: np.ndarray):
         # The pivot is the first nonzero element of the row
         fixed_fluxes[nz[0]] = True
     free_fluxes = ~fixed_fluxes
-    if not any(free_fluxes):
-        raise RuntimeError("No free fluxes detected")
     # Now to get the equations for the fixed fluxes from the free fluxes
     num_fixed = fixed_fluxes.sum()
     fixed_fluxes = rr_mat[:num_fixed, free_fluxes] * -1

@@ -55,6 +55,72 @@ def model_small():
     # Clean up
     shutil.rmtree(test_dir)
 
+
+@ pytest.fixture
+def model_small_rankdef():
+    # Make sure that logging print statements still work
+    stream_handler = logging.StreamHandler(sys.stdout)
+    stream_handler.setFormatter(formatter)
+    logger.addHandler(stream_handler)
+    # Write the files
+    tmodel = build_small_test_model_rankdef()
+    test_dir = Path("test_dir")
+    result_dir = test_dir / "results"
+    if test_dir.exists():
+        shutil.rmtree(test_dir)
+    test_dir.mkdir()
+    result_dir.mkdir()
+    model_conversion.write_model_files(tmodel, test_dir)
+    # We need at least one measurment
+    header = pd.DataFrame(columns=["measurement_type","target_id","condition_id","measurement","error_scale"],
+                          data=[["mic", "f6p_c", "condition_1", 0.001, 0.1]])
+    header.to_csv(test_dir / "measurements.csv", index=False)
+    yield tmodel
+    # Clean up
+    shutil.rmtree(test_dir)
+
+
+def build_small_test_model_rankdef():
+    """ From the example from Metabolic control theory: A structural approach
+    https://doi.org/10.1016/S0022-5193(88)80073-0
+
+    The exact metabolites are unimportant and the row rank deficiency is important
+    """
+    model = Model("small_toy")
+    model.add_metabolites([
+        Metabolite(id="f6p_c", name="Fructose 6 phosphate", compartment="c"),
+        Metabolite(id="g6p_c", name="Glucose 6 phosphate", compartment="c"),
+        Metabolite(id="ATP", name="ATP", compartment="c"),
+        Metabolite(id="f1p_c", name="Fructose 1 phosphate", compartment="c"),
+        Metabolite(id="ADP", name="ADP", compartment="c"),
+        Metabolite(id="g1p_c", name="Glucose 1 phosphate", compartment="c")
+
+    ])
+    model.add_reactions([Reaction("1"),
+                         Reaction("2")
+                         ])
+    # Add the reactions
+    # Add the stoichiometry
+    model.reactions[0].build_reaction_from_string("f6p_c + ADP <--> f1p_c + ATP")
+    model.reactions[1].build_reaction_from_string("g6p_c + ATP <--> g1p_c + ADP")
+    # Boundary reactions
+    model.add_boundary(model.metabolites.get_by_id("f6p_c"), type="sink")
+    model.add_boundary(model.metabolites.get_by_id("f1p_c"), type="exchange")
+    model.add_boundary(model.metabolites.get_by_id("g6p_c"), type="exchange")
+    model.add_boundary(model.metabolites.get_by_id("g1p_c"), type="exchange")
+    # Make the compartment info
+    compartment_info = pd.DataFrame([[7.5, 0.25, 298.15]], index=["c"], columns=["pH", "I", "T"])
+    thermo_model = tmodel(model, compartment_info=compartment_info)
+    # Add the KEGG ids
+    thermo_model.metabolites[0].Kegg_id = "kegg:C00085"
+    thermo_model.metabolites[1].Kegg_id = "kegg:C00668"
+    thermo_model.metabolites[2].Kegg_id = "kegg:C05001"
+    thermo_model.metabolites[3].Kegg_id = "kegg:C00103"
+    thermo_model.metabolites[4].Kegg_id = "kegg:C00002"
+    thermo_model.metabolites[5].Kegg_id = "kegg:C00008"
+    return thermo_model
+
+
 def build_small_test_model():
     """
     Make the small toy model with the interconversion between F6P,
@@ -91,7 +157,6 @@ def build_small_test_model():
     thermo_model.metabolites[1].Kegg_id = "kegg:C00668"
     thermo_model.metabolites[2].Kegg_id = "kegg:C05001"
     thermo_model.metabolites[3].Kegg_id = "kegg:C00103"
-
     return thermo_model
 
 ####### Taken directly from multitfa load_test_model

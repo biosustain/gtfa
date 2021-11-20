@@ -11,7 +11,7 @@ from src.fitting import stan_input_from_dir
 from src.model_conversion import write_model_files
 # Don't delete
 from model_setup import ecoli_model, model_small
-from src.pandas_to_cmdstanpy import get_free_x, get_exchange_rxns
+from src.pandas_to_cmdstanpy import get_free_x_and_rows, get_exchange_rxns
 
 
 def test_get_free_fluxes_solution_many():
@@ -92,7 +92,7 @@ def test_free_x_calculation_true(model_small):
     test_dir = Path("test_dir")
     orders = ['EX_f1p_c', 'f6p_c']
     S = pd.read_csv(test_dir / "stoichiometry.csv", index_col="metabolite")
-    free_x = get_free_x(S, orders)
+    free_x, _ = get_free_x_and_rows(S, orders)
     assert free_x[orders].sum() == 2, "Exchange and f6p_c are valid free x variables"
 
 
@@ -101,7 +101,7 @@ def test_free_x_calculation_false(model_small):
     test_dir = Path("test_dir")
     orders = ['SK_g6p_c', 'EX_f1p_c']
     S = pd.read_csv(test_dir / "stoichiometry.csv", index_col="metabolite")
-    free_x = get_free_x(S, orders)
+    free_x, _ = get_free_x_and_rows(S, orders)
     assert free_x[orders].sum() == 1, "Only one exchange reaction can be free"
 
 
@@ -114,7 +114,7 @@ def test_free_x_shuffle_S():
         # Shuffle the columns
         np.random.seed(i)
         shuffled_S = S.loc[np.random.permutation(S.index), np.random.permutation(S.columns)]
-        free_x = get_free_x(shuffled_S, orders)
+        free_x, _ = get_free_x_and_rows(shuffled_S, orders)
         assert free_x[orders].sum() == 1, "Only one exchange reaction can be free"
 
 
@@ -130,7 +130,7 @@ def test_all_small():
     # Now test each of the combinations
     for comb in combs:
         comb = pd.Series(comb, index=comb)
-        free_x = get_free_x(S, comb)
+        free_x, _ = get_free_x_and_rows(S, comb)
         # If the given variables (the final two) are free, then store them
         if all(comb.isin(['SK_g6p_c', 'EX_f1p_c'])) or all(comb.isin(['f6p_c', 'g1p_c'])):
             assert free_x[comb].sum() == 1, "Only one exchange reaction can be free"
