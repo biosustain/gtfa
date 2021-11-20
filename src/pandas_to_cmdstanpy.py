@@ -2,6 +2,7 @@
 import itertools
 import logging
 import re
+import time
 from dataclasses import dataclass
 from typing import Dict, List
 import numpy as np
@@ -109,7 +110,7 @@ def get_coords(S: pd.DataFrame, measurements: pd.DataFrame, priors: pd.DataFrame
     exchanges = S.columns[is_exchange]
     internals = S.columns[~is_exchange]
     num_ex = is_exchange.sum()
-    free_x_ind = get_free_x(S, order)
+    free_x_ind, free_rows_ind = get_free_x_and_rows(S, order)
     # Get the fixed and free x values
     x_names = base_ordering
     free_x_names = x_names[free_x_ind]
@@ -148,10 +149,12 @@ def get_coords(S: pd.DataFrame, measurements: pd.DataFrame, priors: pd.DataFrame
         "condition": list(conditions),
         "free_x": list(free_x),
         "fixed_x": list(fixed_x),
+        "free_rows": list(S.index[free_rows_ind]),
+        "fixed_rows": list(S.index[~free_rows_ind])
     }
 
 
-def get_free_x(S, order):
+def get_free_x_and_rows(S, order):
     """
     Get the free x values of the corresponding S_c matrix.
     :param S: The stoichiometric matrix
@@ -182,9 +185,12 @@ def get_free_x(S, order):
     # Reorder the columns according the the given ordering
     s_total = s_total.loc[:, order]
     free_x_ind, _ = get_free_fluxes(s_total.to_numpy())
+    if not any(free_x_ind):
+        raise RuntimeError("No free fluxes detected")
+    fixed_rows_ind, _ = get_free_fluxes(s_total.T.to_numpy())
     # Revert back to original ordering
     free_x_ind = free_x_ind[order.index.get_indexer(base_ordering)]
-    return pd.Series(free_x_ind, index=base_ordering)
+    return pd.Series(free_x_ind, index=base_ordering), pd.Series(~fixed_rows_ind, s_total.index)
 
 
 def check_input(measurements, priors):
@@ -250,6 +256,8 @@ def get_stan_input(
         "N_free_met_conc": len(coords["free_met_conc"]),
         "N_free_x": len(coords["free_x"]),
         "N_fixed_x": len(coords["fixed_x"]),
+        "N_free_rows": len(coords["free_rows"]),
+        "N_fixed_rows": len(coords["fixed_rows"]),
         "N_x": len(coords["fixed_x"] + coords["free_x"]),
         # Network
         "S": S.values.tolist(),
@@ -268,6 +276,8 @@ def get_stan_input(
         "ix_fixed_met_to_met": make_index_map(coords, "metabolite", ["fixed_met_conc"]),
         "ix_free_ex_to_ex": make_index_map(coords, "exchange", ["exchange", "free_x_names"]),
         "ix_fixed_ex_to_ex": make_index_map(coords, "exchange", ["exchange", "fixed_x_names"]),
+        "ix_free_row_to_met": make_index_map(coords, "metabolite", ["free_rows"]),
+        "ix_fixed_row_to_met": make_index_map(coords, "metabolite", ["fixed_rows"]),
         # measurements
         "N_condition": len(coords["condition"]),
         "N_y_enzyme": len(measurements_by_type["enzyme"]),

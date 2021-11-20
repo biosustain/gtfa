@@ -101,7 +101,7 @@ result_dir.mkdir()
 from src import model_conversion
 from src.tests.model_setup import build_small_test_model
 tmodel = build_small_test_model()
-model_conversion.write_model_files(tmodel, test_dir)
+model_conversion.write_files_from_tmodel(tmodel, test_dir)
 
 
 # If you're not writing the model use this to clear the directory

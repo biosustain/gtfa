@@ -91,7 +91,7 @@ def get_99_pct_params_n(x1: float, x2: float):
     """
     return get_normal_params_from_qs(x1, x2, 0.005, 0.995)
 
-def rref(A: np.ndarray, tol: float=1.0e-12):
+def rref(A: np.ndarray, tol: float=1.0e-8):
     """
     Calculate the reduced row echelon form of a matrix.
 
@@ -101,7 +101,7 @@ def rref(A: np.ndarray, tol: float=1.0e-12):
     :return: M: The matrix in row echelon form
              jb: ?
     """
-    M = A.copy() # We don't want to modify it in place
+    M = A.copy()  # We don't want to modify it in place
     m, n = M.shape
     i, j = 0, 0
     jb = []
@@ -129,7 +129,7 @@ def rref(A: np.ndarray, tol: float=1.0e-12):
             j += 1
     return M, jb
 
-def get_free_fluxes(S: np.ndarray):
+def get_free_fluxes(S: np.ndarray, tol: float=1.0e-8):
     """
     Calculate the set of free fluxes from a stoichiometric matrix. Also returns a set of vectors for each dependent
     reaction for its calculation from the
@@ -148,23 +148,32 @@ def get_free_fluxes(S: np.ndarray):
         v[~free_cols] = fixed_fluxes
         M @ v # Confirm output vector is all near 0
     """
-    nrows, ncols = S.shape
-    rr_mat, jb = rref(S)
-    assert all([x == y for x,y in zip(jb, sorted(jb))]), "Dealing with column rearrangements is not yet implemented"
-    fixed_fluxes = np.full(ncols, False)
-    for i in range(nrows):
-        nz = np.nonzero(rr_mat[i, :])[0]
-        if len(nz) == 0:
-            break
-        # The pivot is the first nonzero element of the row
-        fixed_fluxes[nz[0]] = True
+    # Sort the matrix by the columns with the highest values to improve numerical stability
+    rr_mat, _ = rref(S, tol)
+    fixed_fluxes = rref_to_fixed(rr_mat, tol)
+    # Return the original order
+    # Determine the fixed fluxes
     free_fluxes = ~fixed_fluxes
-    if not any(free_fluxes):
-        raise RuntimeError("No free fluxes detected")
     # Now to get the equations for the fixed fluxes from the free fluxes
     num_fixed = fixed_fluxes.sum()
     fixed_fluxes = rr_mat[:num_fixed, free_fluxes] * -1
     return free_fluxes, fixed_fluxes
+
+
+def rref_to_fixed(rr_mat, tol):
+    """
+    Calculate the fixed columns from the reduced row echelon form of a matrix.
+    """
+    nrows, ncols = rr_mat.shape
+    fixed_fluxes = np.full(ncols, False)
+    for i in range(nrows):
+        nz = np.nonzero(abs(rr_mat[i, :]) > tol)[0]
+        if len(nz) == 0:
+            break
+        # The pivot is the first nonzero element of the row
+        fixed_fluxes[nz[0]] = True
+    return fixed_fluxes
+
 
 def to_dataframe(mcmc, dims, coords):
     """ Convert the MCMC output of stan to a pandas dataframe"""
