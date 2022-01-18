@@ -3,30 +3,37 @@ import shutil
 import sys
 from pathlib import Path
 
+from equilibrator_api import ComponentContribution
 import pandas as pd
 import pytest
 from cobra import Model, Metabolite, Reaction
 from cobra.io import load_model
-from multitfa.core import tmodel
 
 from src import model_conversion
 
 logger = logging.getLogger(__name__)
 formatter = logging.Formatter('%(asctime)s | %(name)s | %(levelname)s | %(message)s')
+# This makes the tests run faster
+cc = None
+
+
 @pytest.fixture
 def ecoli_model():
+    global cc
     # Make sure that logging print statements still work
     stream_handler = logging.StreamHandler(sys.stdout)
     stream_handler.setFormatter(formatter)
     logger.addHandler(stream_handler)
     # Write the files
-    tmodel = build_test_model()
+    tmodel = load_model("e_coli_core")
     test_dir = Path("test_dir")
     if test_dir.exists():
         shutil.rmtree(test_dir)
     result_dir = test_dir / "results"
     result_dir.mkdir(parents=True)
-    model_conversion.write_model_files(tmodel, test_dir)
+    if cc is None:
+        cc = ComponentContribution()
+    model_conversion.write_model_files(tmodel, test_dir, cc=cc)
     yield tmodel
     # Clean up
     shutil.rmtree(test_dir)
@@ -34,6 +41,7 @@ def ecoli_model():
 
 @pytest.fixture
 def model_small():
+    global cc
     # Make sure that logging print statements still work
     stream_handler = logging.StreamHandler(sys.stdout)
     stream_handler.setFormatter(formatter)
@@ -46,7 +54,9 @@ def model_small():
         shutil.rmtree(test_dir)
     test_dir.mkdir()
     result_dir.mkdir()
-    model_conversion.write_model_files(tmodel, test_dir)
+    if cc is None:
+        cc = ComponentContribution()
+    model_conversion.write_model_files(tmodel, test_dir, cc=cc)
     # We need at least one measurment
     header = pd.DataFrame(columns=["measurement_type","target_id","condition_id","measurement","error_scale"],
                           data=[["mic", "f6p_c", "condition_1", 0.001, 0.1]])
@@ -58,6 +68,7 @@ def model_small():
 
 @ pytest.fixture
 def model_small_rankdef():
+    global cc
     # Make sure that logging print statements still work
     stream_handler = logging.StreamHandler(sys.stdout)
     stream_handler.setFormatter(formatter)
@@ -70,7 +81,9 @@ def model_small_rankdef():
         shutil.rmtree(test_dir)
     test_dir.mkdir()
     result_dir.mkdir()
-    model_conversion.write_model_files(tmodel, test_dir)
+    if cc is None:
+        cc = ComponentContribution()
+    model_conversion.write_model_files(tmodel, test_dir, cc=cc)
     # We need at least one measurment
     header = pd.DataFrame(columns=["measurement_type","target_id","condition_id","measurement","error_scale"],
                           data=[["mic", "f6p_c", "condition_1", 0.001, 0.1]])
@@ -109,16 +122,14 @@ def build_small_test_model_rankdef():
     model.add_boundary(model.metabolites.get_by_id("g6p_c"), type="exchange")
     model.add_boundary(model.metabolites.get_by_id("g1p_c"), type="exchange")
     # Make the compartment info
-    compartment_info = pd.DataFrame([[7.5, 0.25, 298.15]], index=["c"], columns=["pH", "I", "T"])
-    thermo_model = tmodel(model, compartment_info=compartment_info)
     # Add the KEGG ids
-    thermo_model.metabolites[0].Kegg_id = "kegg:C00085"
-    thermo_model.metabolites[1].Kegg_id = "kegg:C00668"
-    thermo_model.metabolites[2].Kegg_id = "kegg:C05001"
-    thermo_model.metabolites[3].Kegg_id = "kegg:C00103"
-    thermo_model.metabolites[4].Kegg_id = "kegg:C00002"
-    thermo_model.metabolites[5].Kegg_id = "kegg:C00008"
-    return thermo_model
+    model.metabolites[0].annotation = {"kegg.compound": "C00085"}
+    model.metabolites[1].annotation = {"kegg.compound": "C00668"}
+    model.metabolites[2].annotation = {"kegg.compound": "C05001"}
+    model.metabolites[3].annotation = {"kegg.compound": "C00103"}
+    model.metabolites[4].annotation = {"kegg.compound": "C00002"}
+    model.metabolites[5].annotation = {"kegg.compound": "C00008"}
+    return model
 
 
 def build_small_test_model():
@@ -150,41 +161,9 @@ def build_small_test_model():
     model.add_boundary(model.metabolites.get_by_id("g6p_c"), type="sink", lb=1, ub=1)
     model.add_boundary(model.metabolites.get_by_id("f1p_c"), type="exchange")
     # Make the compartment info
-    compartment_info = pd.DataFrame([[7.5, 0.25, 298.15]], index=["c"], columns=["pH", "I", "T"])
-    thermo_model = tmodel(model, compartment_info=compartment_info)
     # Add the KEGG ids
-    thermo_model.metabolites[0].Kegg_id = "kegg:C00085"
-    thermo_model.metabolites[1].Kegg_id = "kegg:C00668"
-    thermo_model.metabolites[2].Kegg_id = "kegg:C05001"
-    thermo_model.metabolites[3].Kegg_id = "kegg:C00103"
-    return thermo_model
-
-####### Taken directly from multitfa load_test_model
-def build_test_model():
-    model = load_model("e_coli_core")
-    pH_I_T_dict = {
-        "pH": {"c": 7.5, "e": 7, "p": 7},
-        "I": {"c": 0.25, "e": 0, "p": 0},
-        "T": {"c": 298.15, "e": 298.15, "p": 298.15},
-    }
-    del_psi_dict = {
-        "c": {"c": 0, "e": 0, "p": 150},
-        "e": {"c": 0, "e": 0, "p": 0},
-        "p": {"c": -150, "e": 0, "p": 0},
-    }
-    del_psi = pd.DataFrame.from_dict(data=del_psi_dict)
-    comp_info = pd.DataFrame.from_dict(data=pH_I_T_dict)
-    Excl = [rxn.id for rxn in model.boundary] + [
-        "BIOMASS_Ecoli_core_w_GAM",
-        "O2t",
-        "H2Ot",
-    ]
-    tfa_model = tmodel(
-        model, Exclude_list=Excl, compartment_info=comp_info, membrane_potential=del_psi
-    )
-    for met in tfa_model.metabolites:
-        kegg_id = "bigg.metabolite:" + met.id[:-2]
-        met.Kegg_id = kegg_id
-    tfa_model.update()
-    return tfa_model
-########## End of direct copy
+    model.metabolites[0].annotation = {"kegg.compound": "C00085"}
+    model.metabolites[1].annotation = {"kegg.compound": "C00668"}
+    model.metabolites[2].annotation = {"kegg.compound": "C05001"}
+    model.metabolites[3].annotation = {"kegg.compound": "C00103"}
+    return model

@@ -42,49 +42,19 @@ def get_free_fluxes_solution(random_matrix):
         assert all(abs(random_matrix @ v) < eps)
 
 
-@pytest.mark.usefixtures("model_small")
-def test_excluded_reactions_single(model_small):
-    # Add the test dir
-    test_dir = Path("test_dir")
-    # Test first without the new excluded reaction
-    stan_input = stan_input_from_dir(test_dir)
-    assert stan_input["N_exchange"] == 2, "Standard transport reaciton"
-    model_small.Exclude_list = ["g6p/g1p"]
-    # Write the files again
-    write_model_files(model_small, test_dir)
-    stan_input = stan_input_from_dir(test_dir)
-    # Test the expected input
-    assert stan_input["N_exchange"] == 3, "Expect extra transport reaction"
-
-
-@pytest.mark.usefixtures("model_small")
-def test_excluded_reactions_double(model_small):
-    # Add the test dir
-    test_dir = Path("test_dir")
-    # Test first without the new excluded reaction
-    stan_input = stan_input_from_dir(test_dir)
-    assert stan_input["N_exchange"] == 2, "Standard transport reaciton"
-    model_small.Exclude_list = ["g6p/g1p", "f6p/g6p"]
-    # Write the files again
-    write_model_files(model_small, test_dir)
-    stan_input = stan_input_from_dir(test_dir)
-    # Test the expected input
-    assert stan_input["N_exchange"] == 4, "Expect extra transport reaction"
-
-
-@pytest.mark.usefixtures("model_small")
-def test_excluded_reactions_not_present(model_small):
-    # Add the test dir
-    test_dir = Path("test_dir")
-    # Test first without the new excluded reaction
-    stan_input = stan_input_from_dir(test_dir)
-    assert stan_input["N_exchange"] == 2, "Standard transport reaciton"
-    model_small.Exclude_list = ["not_present"]
-    # Write the files again
-    write_model_files(model_small, test_dir)
-    stan_input = stan_input_from_dir(test_dir)
-    # Test the expected input
-    assert stan_input["N_exchange"] == 2, "Expect extra transport reaction"
+# @pytest.mark.usefixtures("model_small")
+# def test_excluded_reactions_single(model_small):
+#     # Add the test dir
+#     test_dir = Path("test_dir")
+#     # Test first without the new excluded reaction
+#     stan_input = stan_input_from_dir(test_dir)
+#     assert stan_input["N_exchange"] == 2, "Standard transport reaciton"
+#     model_small.Exclude_list = ["g6p/g1p"]
+#     # Write the files again
+#     write_model_files(model_small, test_dir)
+#     stan_input = stan_input_from_dir(test_dir)
+#     # Test the expected input
+#     assert stan_input["N_exchange"] == 3, "Expect extra transport reaction"
 
 
 @pytest.mark.usefixtures("model_small")
