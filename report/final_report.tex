@@ -169,9 +169,14 @@
 
 %% Include all macros below
 
-\newcommand{\lorem}{{\bf LOREM}}
-\newcommand{\ipsum}{{\bf IPSUM}}
+%\newcommand{\lorem}{{\bf LOREM}}
+%\newcommand{\ipsum}{{\bf IPSUM}}
 
+
+\newcommand{\dgf}{\Delta_fG}
+\newcommand{\sdgf}{\Delta_fG^{\degree}}
+\newcommand{\dgr}{\Delta_rG}
+\newcommand{\sdgr}{\Delta_rG^{\degree}}
 %% END MACROS SECTION
 
 
@@ -248,10 +253,53 @@ Lars Nielsen\textsuperscript{2,3},
 % Use "Eq" instead of "Equation" for equation citations.
 \section*{Introduction}
 
-Modelling of feasible intracellular fluxes has long been a key task in metabolic engineering. With a feasbile knowledge of
-intracellular fluxes, one can estimate the effects of interventions,
+%Modelling of feasible intracellular fluxes has long been a key task in metabolic engineering.
+%Depending upon the amount of data available, this estimation process can range from a rough description limited only by fundamental stoichiometry and mass-balance laws, to a detailed flux space that respects the known kinetics and regulalatory interactions of metabolic enzymes.
+%With increasing accuracy comes a concomitant increase in computational complexity in describing the space and finding individual solutions within it.
+%In the case of steady-state flux modelling, Flux Balance Analysis (FBA) defines the space of valid fluxes as the null space of the stoichiometric matrix, that is, the space of fluxes that satisfy the steady-state condition.
+%Obtaining a single solution from this space simply requires solving a linear system of equations, which can be solved at genome scale in less than a second.
+%Fluxes can be further constrained to additionally satisfy thermodynamic laws.
+%Obtaining a single solution from this, more complex, space, requires solving a Mixed Integer Linear Programming (MILP) problem, which can be solved at genome scale in the space of minutes to hours.
+%The further addition of kintetic and regulatory information requires a system of ODEs {TODO: abbveriate?} to be solved {TODO: Is this faster?}.
+%    {TODO: Maybe scrap this line of reasoning?}
+
+Modelling of feasible intracellular fluxes has long been a key task in metabolic engineering.
+Depending upon the amount of data available, this estimation process can range from a rough description limited only by fundamental stoichiometry and mass-balance laws, to a detailed flux space that respects the known kinetics and regulalatory interactions of metabolic enzymes.
+A single most-parsimonious solution can then be obtained from this space, with parsiomny determined by maximising biomass production, nearness to measured data or other objective functions {TODO: Others?}.
+However, it is a difficult task for these simple measures of parsimony to define true intracellular conditions from such large spaces of viable fluxes.
+An alternative approach is to characterise the whole space of vaiable fluxes, usually with some form of sampling.
+
+Methods 1,2 {TODO: Research these} were developed to sample uniformly from the space of steady-state fluxes.
+Saa {TODO: Citation} extended these methods to exclude loops from the flux space.
+To remove the need for the explicit removal of loops, an alternative method is to include thermodynamic constraints on the space of valid fluxes.
+In order to define this space, intracellular metabolite concentrations and standard Gibbs' energy ($\sdgr$) of reaction are required.
+As these are both uncertain model parameters, some margin of error needs to be included to ensure that the true intracellular conditions can be represented.
+TMFA {TODO: Etc} define this margin of error for $\sdgr$ and metabolite concentrations by constraining them individually to fall within the 95\% confidence interval.
+
+% TODO: Brief interlude here about the probabilistic information we have about measurements and dgr estimates
+
+\cite{multiTFA} and \cite{PTA} {TODO: The exact method in PTA}extend this to constraining these values to a 95\% confidence interval of their joint probability, significantly tightening the bounds on possible values.
+However, both of these methods effectively throw away {TODO: Reformulate} useful probabistic information about these parameters, effectively treating all values within the confidence interval as equally likely.
+\cite{PTA} {TODO: The exact method} addresses this problem by sampling from the space of valid thermodynamic orthants, i.e. flux directions, with the probabilty of each orthant determined by the probability of $\sdgr$ and metabolite concentrations within it.
+Unfortunately, this method still restricts the space of valid concentrations and $\sdgr$ to the 95\% confidence interval, although, to the authors' knowledge, this is not necessary.
+Additionally, the hit-and-run sampling method described in \cite{PTA} requires multiple linear programming evaluations per sample, to ensure that samples satisfy the steady-state constraint {TODO: Refer to eqn number}, which can inhibit computational performance.
+
+% TODO: Talk here about why defining this space is helpful
+
+In this work, I present an alternative approach to defining and sampling from the space of fluxes that satisfy both steady-state and thermodynamic constraints.
+Generative Thermodynamic Flux Analysis (GTFA)
+
+% TODO: Describe the combined sdgr and met conc space as the thermodynamic space ?
+% Justify sampling - better than a single solution.
+% As sampling gets more complex, the process can get more tricky. More time spent exploring areas that are not likely.
+
+
 % Q - purpose. What are we actually trying to do? Unifying various sources of information to approximate intracellular conditions
 % Constraint based modelling does this with very little information requried.
+
+
+% Information requirements increase with complexity as well
+
 
 % Start with the concept of flux sampling and why it can be better than FBA and selecting a single optimal point from the
 % flux space.
