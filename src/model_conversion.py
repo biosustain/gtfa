@@ -90,7 +90,12 @@ def calc_model_dgfs(model, cc=None):
 
 
 def get_eq_compounds(model, cc):
-    compound_names = ["_".join(cname.id.split("_")[:-1]) for cname in model.metabolites]
+    compound_names = []
+    for m in model.metabolites:
+        if "_" in m.id:
+            compound_names.append("_".join(m.id.split("_")[:-1]))
+        else:
+            compound_names.append(m.id)
     compound_list = [cc.get_compound(f"bigg.metabolite:{cname}") for cname in compound_names]
     # Read in the IDs and use the kegg IDs if the BIGG IDs can not be found
     ids_path = pathlib.Path(__file__).parent.parent / "data" / "raw" / "from_gollub_2020" / "compound_ids.csv"
