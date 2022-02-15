@@ -275,46 +275,43 @@ Methods 1,2 {TODO: Research these} were developed to sample uniformly from the s
 Saa {TODO: Citation} extended these methods to exclude loops from the flux space, which are known to violate the 2nd law of thermodynamics.
 Alternatively, one can simply include thermodynamic constraints which addresses the problem of loops while excluding further fluxes that violate thermodynamics.
 In this case, for all reacitons, the Gibbs' energy of reaction ($\dgr$) must be less than 0.
-In practice, the $\dgr$ of reaction $i$ is calculated as the sum of the standard Gibbs' energy of reaction ($\sdgr$) and the scaled logarithm of products over reactants (\ref{eq:dgr})
-\[
-    \dgr_i = \sdgr_i + RT\ln \frac{P}{R} \label{eq:dgr}
-\]
+In practice, the $\dgr$ of reaction $i$ is calculated as the sum of the Gibbs energy of reaction under standard conditions ($\sdgr$) and the scaled logarithm of products over reactants (\ref{eq:dgr})
+\begin{align}
+    \dgr_i &= \sdgr_i + RT\ln \frac{P}{R} \label{eq:dgr}
+\end{align}
 where $R$ is the gas constant, $T$ is the temperature and $P$ and $R$ are the concentrations of the reaction's products and reactants respectively.
-For a set of reactions $1,...,r$ ($\bdgr \in \mathbb{R^r}$), this can also be written in matrix form as
+Because the Gibbs energy of a reaction is a state function, the $\dgr$ and $\sdgr$ of a reaction are equivalent to the Gibbs energy of formation ($\dgf$) and standard Gibbs energy of formation ($\sdgf$) respectively of all reaction substrates, when scaled by their stoichiometries.
+That is,
 \[
-    \bdgr = \bsdgr + RT \cdot S^{T}\ln{\mathbf{c}} \label{eq:dgr_vec}
+    \sdgr_i = s_i \cdot \sdgf_i \\
 \]
-% TODO: This is for the direct reaciton form, we should also have a form based on formation energies and highlight that they are equivalent
-where $\mathbf{c} \in \mathbb{R}_{+}^m$ is the concentration of all metabolites $1,...,m$ in $S$.
-This formulation also nicely highlights the fact that $\dgr$, $\$
+where $s_i \in \mathbb{Z}^{m_i}$ are the stoichiometries and $\sdgf \in \mathbb{R}^{m_i}$ are the standard formations energies of metabolites $1,...,m_i$ involved in reaction $i$.
 
+For a set of reactions $1,...,r$ ($\bdgr \in \mathbb{R^r}$), this can also be written in matrix form as
+\begin{align}
+        \bdgr &= \bsdgr + RT \cdot S^{T}\ln{\mathbf{c}} \label{eq:dgr_vec}\\
+              &= RT \cdot S^T (\sdgf + RT \ln{\mathbf{c}}) \label{eq:dgr_sdgf_vec}
+\end{align}
+where $\mathbf{c} \in \mathbb{R}_{+}^m$ is the concentration of all metabolites $1,\dots,m$ in $S$.
+Eq \ref{eq:dgr_vec} shows the relation between the $\dgr$ and $\sdgr$ and Eq \ref{eq:dgr_sdgf_vec} shows how the same can be calculated with the $\sdgf$.
+This formulation also nicely highlights the fact that $\dgr$, $\bsdgr$ and $\ln{\mathbf{c}}$ are linearly related.
+As these values are estimated, another benefit of Eq \ref{eq:dgr_sdgf_vec} becomes clear, namely that all combinations of $\sdgf$ produce a system that is thermodynamically consistent.
+An arbitrarily chosen set of $\sdgr$ does not satisfy this property (see \cite{noor_2013_equilibrator} for a more thorough description of this effect).
 
-% TODO: Find a nice formulation
-
-% TODO: Learn a little more about activations vs concentrations. This should be in the equilibrator paper
-
-In order to define this space, intracellular metabolite concentrations and standard Gibbs' energy ($\sdgr$) of reaction are required. %This needs to be exanded upon
-% TODO This needs to flow into the next section
-
-The estimation of the standard Gibb's energy of reactions ($\sdgr$) and standard Gibb's energy of formation ($\sdgf$) of compounds is essential for modelling accruarate intracellular fluxes.
-As the $\sdgr$
-
-
-
-
-As these are both uncertain model parameters, some margin of error needs to be included to ensure that the true intracellular conditions can be represented.
+Both $\mathbf{c}$ and $\sdgf$ can not be known for certain and need to be estimated, which creates a degree of uncertainty about their true values.
+To account for this uncertainty, some margin of error needs to be included to ensure that the true intracellular conditions can be represented.
 TMFA {TODO: Etc} define this margin of error for $\sdgr$ and metabolite concentrations by constraining them individually to fall within the 95\% confidence interval.
-
-
-
-% TODO: Brief interlude here about the probabilistic information we have about measurements and dgr estimates
 \cite{multiTFA} and \cite{PTA} {TODO: The exact method in PTA} extend this to constraining these values to a 95\% confidence interval of their joint probability, significantly tightening the bounds on possible values.
 However, both of these methods discard useful probabistic information about these parameters, effectively treating all values within the confidence interval as equally likely.
 \cite{PTA} {TODO: The exact method} addresses this problem by sampling from the space of valid thermodynamic orthants, i.e. flux directions, with the probabilty of each orthant determined by the probability of $\sdgr$ and metabolite concentrations within it.
 Unfortunately, this method still restricts the space of valid concentrations and $\sdgr$ to the 95\% confidence interval, although, to the authors' knowledge, this is not necessary.
 Additionally, the hit-and-run sampling method described in \cite{PTA} requires multiple linear programming evaluations per sample, to ensure that samples satisfy the steady-state constraint {TODO: Refer to eqn number}, which can inhibit computational performance.
 
-% TODO: Talk here about why defining this space is helpful
+
+
+
+
+
 
 In this work, I present an alternative approach to defining and sampling from the space of fluxes that satisfy both steady-state and thermodynamic constraints.
 Generative Thermodynamic Flux Analysis (GTFA)
@@ -394,7 +391,13 @@ Generative Thermodynamic Flux Analysis (GTFA)
 
 \section*{Discussion}
 
+% GTFA in the context of a pre-processing step before kinetic modelling
+% We are trying to unify many sources of information.
+% If we represent the results with (eg) a normal distribution, why not use variational inferece?
+%
+
 \subsection{Future work}
+% Could gtfa work without fluxomics data - i.e. to predict fluxes?
 % Inclusion of fluxomics data directly - forward and reverse data
 % Inclusion of predictive model into bayesian model? Can you develop a machine learning method of learning latent paramters?
 %
