@@ -261,15 +261,16 @@ Lars Nielsen\textsuperscript{2,3},
 % Use "Eq" instead of "Equation" for equation citations.
 \section*{Introduction}
 
-
+% TODO: Longer intro to the field in general?
 Modelling of feasible intracellular fluxes has long been a key task in metabolic engineering.
-If little data is available, the space of valid fluxes can be relatively large, limited only by fundamental reaction stoichiometry and mass-balance laws.
+If little data is available, the space of valid fluxes can be relatively large, limited only by fundamental reaction stoichiometry and mass-balance laws:
+\[
+    0 = S\cdot \mathbf{v} \label{eq:steady_state}
+\].
 If more data is available, this space can be further constrained by known kinetics and regulatory interactions of metabolic enzymes.
 A single most-parsimonious solution can then be obtained, with parsiomny determined by maximising biomass production, nearness to measured data or other objective functions {TODO: Others?}.
 However, it is a difficult task for these simple measures of parsimony to define true intracellular conditions from such large spaces of viable fluxes.
 An alternative is to characterise the entire space of vaiable fluxes, usually with some form of sampling. {TODO: Further references here}
-
-% TODO: Put the steady state equation here
 
 Methods 1,2 {TODO: Research these} were developed to sample uniformly from the space of steady-state fluxes.
 Saa {TODO: Citation} extended these methods to exclude loops from the flux space, which are known to violate the 2nd law of thermodynamics.
@@ -283,82 +284,58 @@ where $R$ is the gas constant, $T$ is the temperature and $P$ and $R$ are the co
 Because the Gibbs energy of a reaction is a state function, the $\dgr$ and $\sdgr$ of a reaction are equivalent to the Gibbs energy of formation ($\dgf$) and standard Gibbs energy of formation ($\sdgf$) respectively of all reaction substrates, when scaled by their stoichiometries.
 That is,
 \[
-    \sdgr_i = s_i \cdot \sdgf_i \\
+    \sdgr_i = s_i \cdot \sdgf_i
 \]
-where $s_i \in \mathbb{Z}^{m_i}$ are the stoichiometries and $\sdgf \in \mathbb{R}^{m_i}$ are the standard formations energies of metabolites $1,...,m_i$ involved in reaction $i$.
+where $s_i \in \mathbb{Z}^{m_i}$ are the stoichiometries and $\sdgf \in \mathbb{R}^{m_i}$ are the standard formations energies of metabolites $1,\dots,m_i$ involved in reaction $i$.
 
-For a set of reactions $1,...,r$ ($\bdgr \in \mathbb{R^r}$), this can also be written in matrix form as
+For a set of reactions $1,\dots,r$ ($\bdgr \in \mathbb{R^r}$), this can also be written in matrix form as
 \begin{align}
         \bdgr &= \bsdgr + RT \cdot S^{T}\ln{\mathbf{c}} \label{eq:dgr_vec}\\
               &= RT \cdot S^T (\sdgf + RT \ln{\mathbf{c}}) \label{eq:dgr_sdgf_vec}
 \end{align}
 where $\mathbf{c} \in \mathbb{R}_{+}^m$ is the concentration of all metabolites $1,\dots,m$ in $S$.
-Eq \ref{eq:dgr_vec} shows the relation between the $\dgr$ and $\sdgr$ and Eq \ref{eq:dgr_sdgf_vec} shows how the same can be calculated with the $\sdgf$.
+Eq~\ref{eq:dgr_vec} shows the relation between the $\dgr$ and $\sdgr$ and Eq~\ref{eq:dgr_sdgf_vec} shows how the same can be calculated with the $\sdgf$.
 This formulation also nicely highlights the fact that $\dgr$, $\bsdgr$ and $\ln{\mathbf{c}}$ are linearly related.
-As these values are estimated, another benefit of Eq \ref{eq:dgr_sdgf_vec} becomes clear, namely that all combinations of $\sdgf$ produce a system that is thermodynamically consistent.
-An arbitrarily chosen set of $\sdgr$ does not satisfy this property (see \cite{noor_2013_equilibrator} for a more thorough description of this effect).
-
-Both $\mathbf{c}$ and $\sdgf$ can not be known for certain and need to be estimated, which creates a degree of uncertainty about their true values.
-To account for this uncertainty, some margin of error needs to be included to ensure that the true intracellular conditions can be represented.
-TMFA {TODO: Etc} define this margin of error for $\sdgr$ and metabolite concentrations by constraining them individually to fall within the 95\% confidence interval.
-\cite{multiTFA} and \cite{PTA} {TODO: The exact method in PTA} extend this to constraining these values to a 95\% confidence interval of their joint probability, significantly tightening the bounds on possible values.
-However, both of these methods discard useful probabistic information about these parameters, effectively treating all values within the confidence interval as equally likely.
-\cite{PTA} {TODO: The exact method} addresses this problem by sampling from the space of valid thermodynamic orthants, i.e. flux directions, with the probabilty of each orthant determined by the probability of $\sdgr$ and metabolite concentrations within it.
-Unfortunately, this method still restricts the space of valid concentrations and $\sdgr$ to the 95\% confidence interval, although, to the authors' knowledge, this is not necessary.
-Additionally, the hit-and-run sampling method described in \cite{PTA} requires multiple linear programming evaluations per sample, to ensure that samples satisfy the steady-state constraint {TODO: Refer to eqn number}, which can inhibit computational performance.
-
-
-
-
-
-
-
-In this work, I present an alternative approach to defining and sampling from the space of fluxes that satisfy both steady-state and thermodynamic constraints.
-Generative Thermodynamic Flux Analysis (GTFA)
-
-% TODO: Describe the combined sdgr and met conc space as the thermodynamic space ?
-% Justify sampling - better than a single solution.
-% As sampling gets more complex, the process can get more tricky. More time spent exploring areas that are not likely.
-
-
-% Q - purpose. What are we actually trying to do? Unifying various sources of information to approximate intracellular conditions
-% Constraint based modelling does this with very little information requried.
-
-
-% Information requirements increase with complexity as well
-
-
-% Start with the concept of flux sampling and why it can be better than FBA and selecting a single optimal point from the
-% flux space.
-
-% Q - how is prob involved in the original flux sampling papers?
-
-% With the inclusion of thermodynamic parameters, flux sampling becomes especially interesting because the relevant
-% model parameters come with probabilistic information attached.
-
-% This is unfortunately ignored in the case of TMFA which represents the entirety of this probabilistic information as
-% bounds
-
-% TMFA improved with PTA and multiTFA to quite dramatically reduce the volume of this space of equal values.
-% Less chance for improbable outcomes.
-% Q - did PTA/anyone investigate the likelihood of optimal fluxes selected with both methods??
+As these values are estimated, another benefit of Eq~\ref{eq:dgr_sdgf_vec} becomes clear, namely that all combinations of $\sdgf$ produce a system that is thermodynamically consistent.
+An arbitrarily chosen set of $\sdgr$ does not satisfy this property (see~\cite{noor_2013_equilibrator} for a more thorough description of this effect).
 
 % A more natural way to incorporate this probabilistic information would be to sample parameter sets accoring to their
 % likelihood. Any optimisation after this point can be by selecting the best one but balancing the likelihood of it
 % being present.
 
+Both $\mathbf{c}$ and $\sdgf$ can not be known for certain and need to be estimated, which creates a degree of uncertainty about their true values.
+To account for this uncertainty, some margin of error needs to be included to ensure that the true intracellular conditions can be represented.
+TMFA {TODO: Etc} define this margin of error for $\sdgr$ and metabolite concentrations by constraining them individually to fall within the 95\% confidence interval.
+% TODO: Whole paragraph on the multivariate approach? It's kinda relevant.
+~\cite{multiTFA} and~\cite{PTA} improve upon this approach by constraining these values to a 95\% confidence interval of their joint probability, significantly tightening the bounds on possible values.
+However, both of these methods discard useful probabistic information about these parameters, effectively treating all values within the confidence interval as equally likely.
+~\cite{PTA} {TODO: The exact method} addresses this problem by sampling from the space of valid thermodynamic orthants, i.e. flux directions, with the probabilty of each orthant determined by the probability of $\sdgr$ and metabolite concentrations within it.
+Unfortunately, this method still restricts the space of valid concentrations and $\sdgr$ to the 95\% confidence interval, although, to the authors' knowledge, this is not necessary.
+Additionally, the hit-and-run sampling method described in~\cite{PTA} requires multiple linear programming evaluations per sample, to ensure that samples satisfy steady state (Eq \ref{eq:steady_state}), which can inhibit computational performance.
 
+In this work, I present an alternative approach to defining and sampling from the space of fluxes that satisfy both steady-state and thermodynamic constraints.
+Generative Thermodynamic Flux Analysis (GTFA) is a method for sampling thermodynamically valid fluxes with respect to the probability that these fluxes match measured metabolite concentrations and standard formation energies.
+We represent fluxes as a function of their $\dgr$ multiplied by a scaling factor and separate the network into a set of "fixed" and "free" fluxes.
+This results in a parameter space where all combinations of parameters satisfy mass balance and thermodynamic constraints, as opposed to \cite{PTA}, where large portions of the $\dgr$ parameter space are invalid and must be avoided.
+Furthermore, GTFA allows the inclusion of metabolomics, proteomics and fluxomics data.
+The final output of GTFA is then a set thermodynamically-valid fluxes, which respects the probability of each of these varied data sources.
 
-% Think - is this not just an alternative route to parsimony?? We want to know what internal fluxes are most likely.
-% Either we maximise the biomass, which was always an approximatation of the most likely fluxes, or we take them from our
-% priors / measurements. It's just more information on likely fluxes that is being ignored.
-
-% Think - can we investigate this somehow? How valid is this parsimony assumption under different amounts of data?
-% FBA/TMFA/GTFA and more. There can be errors in the measurements as well though...
-% FBA with completely free directions vs fixing them is also different. We slowly restrict the space of possible fluxes.
-% Is this enough???
+% TODO: Maybe some examples? Slower explanation of how there is probabilistic information attached to all of these measurements?
 
 \section*{Materials and methods}
+
+GTFA unifies metabolomics, fluxomics and enzyme proteomics data of a metabolic network in a generative statistical model.
+That is, all measurements are assumed to be subject to measurement error and have true latent counterparts in the model.
+Structurally, fluxes and thermodynamic data are forced to satisfy both steady state \ref{eq:steady_state} and thermodynamics.
+% TODO: Which law of thermodynamics?
+
+% TODO Ranges here?
+Thermodynamic validty is ensured by representing a reaction's flux $v_i$ as a function of its Gibbs energy of reaction $\dgr_i$ scaled by the enzyme concentration $e_i$ and a scaling factor $b_i$, with $v_i>0$ and $v_i<0$ representing flux in the forward and reverse direciton respectively.
+This can be represented for the entire metabolic network as follows:
+\[
+    \bdgr = \dgr\odot\mathbf{e}\odot\mathbf{b}
+\]
+where $\odot$ represents elementwise multiplication of the vectors, also known as the Hammard product.
 
 \subsection{Estimation of $\sdgf$}
 \subsubsection{Rank degenerate covariance matrix and Cholesky decomposition}
@@ -404,6 +381,8 @@ Generative Thermodynamic Flux Analysis (GTFA)
 
 \section*{Conclusion}
 
+% TODO: Remove this eventually
+\bibliography{bibliography}
 
 \section*{Supporting information}
 
