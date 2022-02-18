@@ -183,6 +183,14 @@
 \newcommand{\bsdgf}{\mathbf{\sdgf}}
 \newcommand{\bdgr}{\mathbf{\dgr}}
 \newcommand{\bsdgr}{\mathbf{\sdgr}}
+\newcommand{\be}{\mathbf{e}}
+\newcommand{\bc}{\mathbf{c}}
+\newcommand{\bb}{\mathbf{b}}
+\newcommand{\bv}{\mathbf{v}}
+\newcommand{\bbe}{\mathbf{be}}
+
+
+
 
 %% END MACROS SECTION
 
@@ -266,7 +274,8 @@ Modelling of feasible intracellular fluxes has long been a key task in metabolic
 If little data is available, the space of valid fluxes can be relatively large, limited only by fundamental reaction stoichiometry and mass-balance laws:
 \[
     0 = S\cdot \mathbf{v} \label{eq:steady_state}
-\].
+\]
+with $S \in \mathbb{Z}^{m\times r}$ representing the stoichiometric matrix, which contains the stoichiometric coefficients of the $m$ metabolites in the $r$ reactions in the metabolic network and $\mathbf{v} \in \mathbb{R}^r$ representing the fluxes of reactions $1,...,r$.
 If more data is available, this space can be further constrained by known kinetics and regulatory interactions of metabolic enzymes.
 A single most-parsimonious solution can then be obtained, with parsiomny determined by maximising biomass production, nearness to measured data or other objective functions {TODO: Others?}.
 However, it is a difficult task for these simple measures of parsimony to define true intracellular conditions from such large spaces of viable fluxes.
@@ -295,7 +304,7 @@ For a set of reactions $1,\dots,r$ ($\bdgr \in \mathbb{R^r}$), this can also be 
 \end{align}
 where $\mathbf{c} \in \mathbb{R}_{+}^m$ is the concentration of all metabolites $1,\dots,m$ in $S$.
 Eq~\ref{eq:dgr_vec} shows the relation between the $\dgr$ and $\sdgr$ and Eq~\ref{eq:dgr_sdgf_vec} shows how the same can be calculated with the $\sdgf$.
-This formulation also nicely highlights the fact that $\dgr$, $\bsdgr$ and $\ln{\mathbf{c}}$ are linearly related.
+This formulation also nicely highlights the fact that $\dgr$, $\bsdgr$ and $\ln{\mathbf{c}}$ are linearly related. % TODO: This is the wrong statement to be making
 As these values are estimated, another benefit of Eq~\ref{eq:dgr_sdgf_vec} becomes clear, namely that all combinations of $\sdgf$ produce a system that is thermodynamically consistent.
 An arbitrarily chosen set of $\sdgr$ does not satisfy this property (see~\cite{noor_2013_equilibrator} for a more thorough description of this effect).
 
@@ -324,9 +333,123 @@ The final output of GTFA is then a set thermodynamically-valid fluxes, which res
 
 \section*{Materials and methods}
 
-GTFA unifies metabolomics, fluxomics and enzyme proteomics data of a metabolic network in a generative statistical model.
-That is, all measurements are assumed to be subject to measurement error and have true latent counterparts in the model.
+GTFA unifies metabolomics, fluxomics and enzyme proteomics data of a metabolic network in a bayesian generative statistical model.
+That is, all measurements are assumed to be subject to measurement error and have latent counterparts in the model that represent the true parameter values.
+In the end, this defines a model that is able to generate measured data.
 Structurally, fluxes and thermodynamic data are forced to satisfy both steady state \ref{eq:steady_state} and thermodynamics.
+
+This section will describe the statistical model used in GTFA.
+As the model is quite complex, we will progressively increase complexity, starting with a simple model and progressively adding complexity until we reach the final model that was applied in the analyses.
+
+% TODO: Give the models names??
+% TODO: Define be as b x e
+A naive first description of the model defines the fluxes as a function of the $\dgr$ scaled by enzyme concentrations and the scaling factor $b$, for a single condition.
+Firstly, the likelihood function describes the densities of measured data for a given parameter configuration.
+The fluxes $\bv$ are a function of the free parameters of the system $\bsdgf$, $\be$, $\bb$ and $\bc$:
+\begin{align}
+    \bv &= \bdgr \odot \be \odot \bb \\
+        &= S^T (\bsdgr + RT\ln{\bc}) \odot \be \odot \bb \\
+\end{align}
+.
+Measurement densities are described as follows:
+% TODO: The notation here is a little lax. How can we do it nicely showing that this is conditional on the params?
+\begin{align*}
+    \mathbf{y_{e}} ~ LN(\ln{\be}, \Sigma_{me}) \\
+    \mathbf{y_{c}} ~ LN(\ln{\bc}, \Sigma_{mc}) \\
+    \mathbf{y_{v}} ~ N(\bv, \Sigma_{mv}) \\
+\end{align*}
+where $\Sigma_{me}$, $\Sigma_{mc}$ and $\Sigma{mv}$ are the covariance matrices of the respective measurement errors.
+As the measurement errors are assumed to be independent, these covariance matrices are diagonal and thus uniquely defined by their traces $\mathbf{\sigma_{be}}$, $\mathbf{\sigma_{bc}}$, $\mathbf{\sigma_{bv}}$.
+
+The priors are defined as follows:
+\begin{align*}
+    \be ~ LN(\mathbf{\mu_e}, \Sigma_e) \\
+    \bb ~ LN(\mathbf{\mu_b}, \Sigma_b) \\
+    \bc ~ LN(\mathbf{\mu_c}, \Sigma_c) \\
+    \bv ~ N(\mathbf{\mu_v}, \Sigma_v) \\
+    \bsdgf ~ N(\mathbf{\mu_{f}}, \Sigma_{f}) \\
+\end{align*}
+where $\mathbf{\mu_e}$, $\mathbf{\mu_c}$, $\mathbf{\mu_v}$, $\mathbf{\mu_b}$ and $\mathbf{\mu_f}$ are the means of the prior distributions and $\Sigma_e$,$\Sigma_b$, $\Sigma_c$,$\Sigma_v$, $\Sigma_f$ are the covariance matrices of the priors distributions.
+The covariance matrices $\Sigma_e$, $\Sigma_b$, $\Sigma_c$ and $\Sigma_v$ assume independence between the individual entries with traces of $\mathbf{\sigma_e}$, $\mathbf{\sigma_b}$, $\mathbf{\sigma_c}$ and $\mathbf{\sigma_v}$.
+For priors on the enzyme and metabolite concentrations we apply the same method as \cite{PTA} and fit a normal distribution to all conditions in the dataset. %TODO: Actually do this and put the values here
+% TODO: Do we have priors on v? If so, how? We could also use the fluxomics data
+Defining a prior for $b$ is more difficult, as there is little prior information on such a quantity and it is expected to vary greatly across reactions.
+% TODO: Mention Lars' thing here?
+We somewhat arbitrarily used a lognormal distribution with a mean of $x$ and a sd of $y$. %TODO, what are the actual values?
+% TOdo: Refer to actual analysis here.
+Defining a prior for $\bsdgf$ was more complex process as it relied on estimates provided by equilibrator \cite{noor_2013_equilibrator}.
+This is described more thoroughly in Section \ref{sec:sdgf_estimation}.
+\begin{align}
+    \bv &= \bdgr \odot \be \odot \bb \\
+        &= S^T (\bsdgr + RT\ln{\bc}) \odot \be \odot \bb \\
+\end{align}
+.
+Measurement densities are described as follows:
+% TODO: The notation here is a little lax. How can we do it nicely showing that this is conditional on the params?
+\begin{align*}
+    \mathbf{y_{e}} ~ LN(\ln{\be}, \Sigma_{me}) \\
+    \mathbf{y_{c}} ~ LN(\ln{\bc}, \Sigma_{mc}) \\
+    \mathbf{y_{v}} ~ N(\bv, \Sigma_{mv}) \\
+\end{align*}
+where $\Sigma_{me}$, $\Sigma_{mc}$ and $\Sigma{mv}$ are the covariance matrices of the respective measurement errors.
+As the measurement errors are assumed to be independent, these covariance matrices are diagonal and thus uniquely defined by their traces $\mathbf{\sigma_{be}}$, $\mathbf{\sigma_{bc}}$, $\mathbf{\sigma_{bv}}$.
+
+The priors are defined as follows:
+\begin{align*}
+    \be ~ LN(\mathbf{\mu_e}, \Sigma_e) \\
+    \bb ~ LN(\mathbf{\mu_b}, \Sigma_b) \\
+    \bc ~ LN(\mathbf{\mu_c}, \Sigma_c) \\
+    \bv ~ N(\mathbf{\mu_v}, \Sigma_v) \\
+    \bsdgf ~ N(\mathbf{\mu_{f}}, \Sigma_{f}) \\
+\end{align*}
+
+% TODO: Other kinds of excluded reactions might need to be mentioned here
+% TODO: Have numbered models?
+The first adaption to the model is the inclusion of exchange reactions.
+Material needs to enter and exit the model, which is represented by one-sided "exchange" reactions that bring individual metabolites through the system boundaries.
+These reactions need to satisfy mass balance, but not thermodynamic constraints.
+In practice, this requires the flux vector $\bv$ and the stoichiometric matrix $S$ each be separated into two parts.
+We represent the first $1,...,p$ columns of $S$ and elements of $\bv$ as $S_\Pi$ and $\bv_\Pi$ as those corresponding to the $p$ exchange reactions in the network.
+This leaves the remaining $1,...,g$ columns of $S$ and elements of $\bv$ as $S_\Gamma$ and $\bv_{Gamma}$ to represent the $g$ internal reactions in the network with $g+p=r$.
+Because there is no meaningful notion of thermodynamics associated with these reactions, they cannot be represented in the same manner as the previous model.
+Instead, the exchange reactions are modelled seperately as free parameters with normal priors:
+% TODO: CONTINUE HERE BY ADAPTING THE BELOW EQUATIONS TO SPLIT THE FLUXES
+\begin{align}
+    \bv_\Gamma &= \bdgr \odot \be \odot \bb \\
+        &= S^T (\bsdgr + RT\ln{\bc}) \odot \be \odot \bb \\
+\end{align}
+.
+\begin{align*}
+    \mathbf{y_{e}} ~ LN(\ln{\be}, \Sigma_{me}) \\
+    \mathbf{y_{c}} ~ LN(\ln{\bc}, \Sigma_{mc}) \\
+    \mathbf{y_{v}} ~ N(\bv, \Sigma_{mv}) \\
+\end{align*}
+
+\begin{align*}
+    \be ~ LN(\mathbf{\mu_e}, \Sigma_e) \\
+    \bb ~ LN(\mathbf{\mu_b}, \Sigma_b) \\
+    \bc ~ LN(\mathbf{\mu_c}, \Sigma_c) \\
+    \bv ~ N(\mathbf{\mu_v}, \Sigma_v) \\
+    \bsdgf ~ N(\mathbf{\mu_{f}}, \Sigma_{f}) \\
+\end{align*}
+
+
+
+This simple formulation, however, does not account for the steady-state constraint (Eq. \ref{eq:steady_state}).
+
+\subsection{Parameter fixing}
+Equation \ref{eq:steady_state} effectively removes $m$ degrees of freedom from the system by requiring mass balance of metabolites.
+To ensure that all parameter configurations are valid, these degrees of freedom need to be removed from the system.
+Often a non-linear solver will be applied to determine a set of fixed parameters that satisfy the given constraints from the parameters that are free to vary. %TODO: Reference for this? Can I reference MAUD?
+Luckily, because of the aforementioned linear dependence between $v$, $\bsdgf$ and $\ln{\bc}$, the
+
+% TODO: ABOVE - need to define the transport reactions as well!
+
+% TODO: Membrane potential will need to be included
+
+
+% Mention MCMC
+
 % TODO: Which law of thermodynamics?
 
 % TODO Ranges here?
@@ -337,14 +460,13 @@ This can be represented for the entire metabolic network as follows:
 \]
 where $\odot$ represents elementwise multiplication of the vectors, also known as the Hammard product.
 
-\subsection{Estimation of $\sdgf$}
+\subsection{Estimation of $\sdgf$} \label{sec:sdgf_estimation}
 \subsubsection{Rank degenerate covariance matrix and Cholesky decomposition}
 
 \subsection{GTFA formulation}
 
 \subsubsection{$\sdgf$ priors and change of variables}
 
-\subsubsection{Reduicing degrees of freedom by fixing paramters}
 
 % Flux, b and dgr are LINEAR functions of one another
 
