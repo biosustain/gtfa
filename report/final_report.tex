@@ -334,6 +334,7 @@ The final output of GTFA is then a set thermodynamically-valid fluxes, which res
 
 \section*{Materials and methods}
 
+\subsection{Model formulation}
 GTFA unifies metabolomics, fluxomics and enzyme proteomics data of a metabolic network in a bayesian generative statistical model.
 That is, all measurements are assumed to be subject to measurement error and have latent counterparts in the model that represent the true parameter values.
 In the end, this defines a model that is able to generate measured data.
@@ -405,6 +406,7 @@ The priors are defined as follows:
 
 % TODO: Other kinds of excluded reactions might need to be mentioned here
 % TODO: Have numbered models?
+\subsubsection{Exchange reactions}
 The first adaption to the model is the inclusion of exchange reactions.
 Material needs to enter and exit the model, which is represented by one-sided "exchange" reactions that bring individual metabolites through the system boundaries.
 These reactions need to satisfy mass balance, but not thermodynamic constraints.
@@ -425,7 +427,7 @@ with a normal prior on the exchange fluxes, which are now free parameters
 This formulation highlights the fact that, with exchange fluxes allowed to vary freely and internal fluxes dependent upon other parameters, there is no guarantee that the steady-state condition holds.
 In fact, it is impossible for the constraints to hold, which will be addressed in the next section.
 
-\subsection{Parameter fixing}
+\subsubsection{Parameter fixing}
 % TODO: Include here what to do with dependent rows of the s matrix as well. What did I do again?
 Equation~\ref{eq:steady_state} effectively removes $m$ degrees of freedom from the system by requiring mass balance of metabolites.
 To ensure that all parameter configurations are valid, these degrees of freedom need to be removed from the system.
@@ -437,7 +439,7 @@ For this purpose we require a number of definitions:
 \begin{align}
     S_v = \begin{bmatrix}
              I^p & \mathbf{0} \\
-             \mathbf{0} & S_{\Gamma} \cdot \bbe\\
+             \mathbf{0} & S_{\Gamma}^T \cdot \bbe\\
           \end{bmatrix} \\
     x = \begin{bmatrix}
             \bv_{\Pi} \\
@@ -450,7 +452,7 @@ with $x \in \mathbb{R}^{m+p}$ being a vector of exchange reactions and formation
  transforms $x$ to the change in metabolite concentrations $d\bc/dt$, which is 0 under steady state.
 
 %TODO: Think about the exact sizes of everything here. Will have something to do with the rank of the matrix
-With these definitions in place, $x$ can be split into two parts $x^{fi} \in \mathbb{R}^{ra}$ and $x^{fr}\in \mathbb{R}^{m+p-ra}$ that correspond to the basic and free variables of $S_m$.
+With these definitions in place, $x$ can be split into two parts $x^{fi} \in \mathbb{R}^{ra(S_m)}$ and $x^{fr}\in \mathbb{R}^{m+p-ra(S_m)}$ that correspond to the basic and free variables of $S_m$.
 % TODO: We need a reference for the above
 % TODO: Should we be more precise here? It's probably not necessary
 The values of the free varaibles can thus be determined given a set of proposed free variables
@@ -460,20 +462,61 @@ The values of the free varaibles can thus be determined given a set of proposed 
     x^{fi} &= S_m^{fi}^{-1} \cdot -(S_m^{fr}\cdot x^{fr})\\
 \end{align}
 where $S_m^{fi}$ and $S_m^{fr}$ are matrices composed of the pivot and non-pivot columns of $S_m$ respectively.
-In concrete terms, this means that the model proposes a set of free fluxes and this allows the determination of the rest of the fluxes such that they satisfy steady state.
-
-% TODO: Continue here by defining the new model. Mention the challenge of the fixed exchange fluxes.
-
+In practice, $x^{fi}$ is solved for instead of using the $S_m^{fi}^{-1}$ due to numerical issues.
+This separation into fixed and free fluxes can be extended to the components of $x$, with $\bc^{fi}$, $\bc^{fr}$, $\bv_\Pi^{fi}$ and $\bv_\Pi^{fr}$ corresponding to the fixed and free metabolite concentrations and exchange fluxes respectively.
+In concrete terms, this means that the model proposes a set of free fluxes and this allows the determination of the rest of the fluxes such that they satisfy steady-state constraints.
+This gives a model with the fixed variables of $x$ determined by free varaiables:
+\begin{align}
+    v &= S_m\cdot x\\
+\end{align}
+This requires modified priors
+\begin{align}
+    \bv_\Pi^{fr} ~ N(\mathbf{\mu_{v_{\Pi}}}, \Sigma_{v_{\Pi}}) \\
+    \bc^{fi} ~ LN(\mathbf{\mu_c}, \Sigma_c) \\
+    \bc^{fr} ~ LN(\mathbf{\mu_c}, \Sigma_c) \\
+\end{align}
+for the model.
+The prior for $\bc$ is interesting in that $\bc^{fi}$ are not true parameters of the model.
+This means that the prior on $\bc^{fr}$ is in fact an (inadmissable) combination of the direct prior and a transfomration of the transformed second prior on $\bc^{fi}$.
+This is further complicated by the fact that, as this is a transformation of paramters, a jacobian transformation should be included to account for the "stretching" of the parameter space by this transformation.
+In Section \ref{sec:x_prior} we show that this had no effect in practice and simplcity of formulation was preferred over any theoretical concerns.
+%TODO: The above prior is not "inadmissible" - there is another word for it
+% TODO: Should I also have a prior on the fixed exchange fluxes?
+% TODO: Make a table of the full models with likelihood and prior
+% TODO: Redundant rows (Does this change the final equation if the inverse is used?)
 % TODO: Mention that S transforms fluxes to changes in met concentrations at the top
+% TODO: Which law of thermodynamics?
+%TODO: Is dgr_m a nice symbol for the membrane potential? What do others use?
 
-% TODO: ABOVE - need to define the transport reactions as well!
+
+\subsubsection{Membrane potentials}
+% TODO: HOW ARE MEMBRANE POTENTIALS CALCULATED?
+The final aspect that needs to be included into the model is the addition of membrane potentials for intercompartmental reactions.
+This manifests itself as a single value that must be added to the $dgr$ of each reaction.
+This requires $S_v$ and $x$ to be slightly refactored.
+$S_v$ now includes an extra first column that contains the membrane potentials $\dgr_m \in \mathbb{R}^p$ and $x$ a first entry with the value $1$.
+This gives
+\[
+    S_v = \begin{bmatrix}
+              \mathbf{0} & \mathbf{I^p} & \mathbf{0} \\
+              \dgr_m & \mathbf{0} & S_{\Gamma}^T\\
+          \end{bmatrix} \\
+    x = \begin{bmatrix}
+            1 \\
+            \bv_\Pi \\
+            \bsdgf + RT\ln{\bc} \\ %TODO: Replace with \bdgf?
+        \end{bmatrix}
+\]
+leaving all other values unchanged.
+% TODO: Does this actually work? Definitely not guaranteed! I actually think it does. Just another driving force.
+
 
 % TODO: Membrane potential will need to be included
 
 
 % Mention MCMC
 
-% TODO: Which law of thermodynamics?
+
 
 
 \subsection{Estimation of $\sdgf$} \label{sec:sdgf_estimation}
@@ -498,6 +541,9 @@ In concrete terms, this means that the model proposes a set of free fluxes and t
 % Results and Discussion can be combined.
 \section*{Results}
 
+\subsection{Prior on elements of $x$}
+\label{sec:x_prior}
+
 \subsection{The effect of change of variables}
 
 \subsection{Speed comparison}
@@ -505,6 +551,12 @@ In concrete terms, this means that the model proposes a set of free fluxes and t
 \subsection{}
 
 \section*{Discussion}
+
+% Order of x (and S) in assigning fixed and free varaiables.
+
+% The S_m matrix changes with every proposal. It's possible to use symbolic algebra if we wanted to speed it up.
+
+
 
 % GTFA in the context of a pre-processing step before kinetic modelling
 % We are trying to unify many sources of information.
@@ -516,6 +568,9 @@ In concrete terms, this means that the model proposes a set of free fluxes and t
 % Inclusion of fluxomics data directly - forward and reverse data
 % Inclusion of predictive model into bayesian model? Can you develop a machine learning method of learning latent paramters?
 %
+% Proper formulation of the prior for x
+
+% Membrane potentials should be included into the model.
 
 \section*{Conclusion}
 
