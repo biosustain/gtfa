@@ -487,7 +487,7 @@ In Section \ref{sec:x_prior} we show that this had no effect in practice and sim
 % TODO: Mention that S transforms fluxes to changes in met concentrations at the top
 % TODO: Which law of thermodynamics?
 %TODO: Is dgr_m a nice symbol for the membrane potential? What do others use?
-
+%TODO: Replace the x part with \bdgf
 
 \subsubsection{Membrane potentials}
 % TODO: HOW ARE MEMBRANE POTENTIALS CALCULATED?
@@ -504,22 +504,58 @@ This gives
     x = \begin{bmatrix}
             1 \\
             \bv_\Pi \\
-            \bsdgf + RT\ln{\bc} \\ %TODO: Replace with \bdgf?
+            \bsdgf + RT\ln{\bc} \\
         \end{bmatrix}
 \]
 leaving all other values unchanged.
-% TODO: Does this actually work? Definitely not guaranteed! I actually think it does. Just another driving force.
-
-
-% TODO: Membrane potential will need to be included
-
-
-% Mention MCMC
-
-
-
-
 \subsection{Estimation of $\sdgf$} \label{sec:sdgf_estimation}
+An important part of the modelling process is determining priors for the $\sdgf$ of the metabolites in the metabolic network.
+The standard method for estimating $\sdgf$ and $\sdgr$ has been to use Equilibrator \cite{noor_2013_equilibrator}, which combines the reactant and group contribution methods.
+The reactant contribution (rc) method performs a linear regression to determine the least squares estimates for standard formation energies of metabolites in the training set
+\[
+    \label{eq:rc}
+    \mathbf{\bsdgr_x} = S_x^T\bsdgf_x + \eps_{rc}
+\]
+where $\mathbf{\bsdgr_x}$ is the measured $\bsdgr$ of the training set, $S_x$ is the stoichiometric matrix of the training data and $\eps_{rc} ~ N(0, \sigma_{rc})$ accounts for measurement error. % TODO: And what else?
+The estimates for $\bsdgf_x$ and $\bsdgr_x$ are then obtained with the standard normal equations
+\begin{align}
+    E[\hat{\bsdgf_x}] = (S_x^T)^+ \mathbf{y}\\
+    Var(\hat{\bsdgf_x}) = (S_x S_x^T)^+ \\
+    E[\hat{y}] = \mathbf{S_x} \cdot E[\hat{\bsdgf}] \\
+    Var(\hat{\bsdgr}) = \mathbf{S_x} Var(\hat{\bsdgf}) \mathbf{S_x.T} + \hat{\Sigma_{rc}} \\
+    \hat{\sigma_{rc}} = s^2 = \frac{\Sum_{i=1}^{N} (E[\hat{\sdgf_i}] - \sdgf_i)^2}{N-\text{rank}(S)}
+\end{align}
+where $\Sigma_{rc}$ is a diagonal matrix whose elements are $\sigma_{rc}$, $s^2$ is the standard error and $\sdgf_i$ is reaction $i$ of the training dataset.
+This is clearly a lienar regression with no intercept, which matches the intuition that a reaction with no change should have a $\sdgr$ of 0.
+% TODO: Maybe I need a variable for the rank of S
+% TODO: Define domains of the dataset so that variance estimates make sense and correct the N above if it should be something else.
+% TODO: Change the x vector to a different name.
+This predominantly relies on data on the equilibrium constants of biochemical reactions, which sometimes need to be corrected to standard conditions. %TODO: How?
+The linear regression accounts for the (relatively small) measurement error in these experiments, as well as small errors in the correction to standard condition. % TODO: Check what they actually said
+While being highly accurate, the reactant contribution method only determines the formation energies of metabolites in the training dataset and thus has relatively low coverage.
+Furthermore, conserved metabolites (TODO: Check this name), i.e. linearly dependant rows of $S$, cannot be fully determined by the method.
+As seen in Equation \ref{eq:rc}, this is the reason that the Moore-Penrose pseudoinverse, instead of the regular matrix inverse, is required for the estimation of the linear regression coefficients.
+A consequence of this, is that the rc method only correctly estimates the component of these dependent rows that exists in the range of the linear transformation described by $S$.
+
+For example, the cofactors ATP and ADP are ubiquitous in the training data, but only as a coupled pair.
+This means that, while the rc method can accurately estimate their relative formation energies, it is impossible to estimate their absolute formation energies.
+Any changes to their absolute formation energies that maintain the same relative energies cause no change to the $\sdgr$ of the reactions in the dataset, leaving a degree of freedom.
+Formally, this means that the vector $[1,-1]$ in $[\sdgf_{\text{ATP}}, \sdgf_{\text{ADP}}]$ is part of the range of $S$, while $[1, 1]$ is in the null space of $S$.
+A side-effect of the Moore-Penrose pseudoinverse is that these $\sdgf$ estimates have a mean of 0, that is, if the optimal $\sdgf_{\text{ATP}} - \sdgf_{\text{ADP}}$ is $10kJ/Mol$, the two estimates would be $-5$ and $5$.
+
+On the other hand, the group contribution (gc) method trades some accuracy for a much greater coverage.
+The assumption behind the gc method is that metabolites can be broken down into counts of their constituent chemical moieties, as shown in Figure \ref{fig:gc}.
+A linear regression on these counts is then performed to estimate the $\dgf$ of a compound of $\dgr$ of a reaction:
+\begin{align}
+    \bdgf_x =
+\end{align}
+
+% TODO: The group contribution method is also performed on the reactions! The error is a reaction-specific error.
+
+
+% TODO Diagram of the gc method with a compound being broken down into its components.
+% TODO: Get specifics of RMSE of gc and rc from equilibrator
+% TODO: Did the first equilibrator offer the covaraince or was it only later?
 \subsubsection{Rank degenerate covariance matrix and Cholesky decomposition}
 
 \subsection{GTFA formulation}
