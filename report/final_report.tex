@@ -179,6 +179,8 @@
 \newcommand{\sdgf}{\Delta_fG^{\degree}}
 \newcommand{\dgr}{\Delta_rG}
 \newcommand{\sdgr}{\Delta_rG^{\degree}}
+\newcommand{\sdgg}{\Delta_gG}
+\newcommand{\bsdgg}{\mathbf{\sdgg}}
 \newcommand{\bdgf}{\mathbf{\dgf}}
 \newcommand{\bsdgf}{\mathbf{\sdgf}}
 \newcommand{\bdgr}{\mathbf{\dgr}}
@@ -509,6 +511,8 @@ This gives
 \]
 leaving all other values unchanged.
 \subsection{Estimation of $\sdgf$} \label{sec:sdgf_estimation}
+
+% TODO: Talk about datasets
 An important part of the modelling process is determining priors for the $\sdgf$ of the metabolites in the metabolic network.
 The standard method for estimating $\sdgf$ and $\sdgr$ has been to use Equilibrator \cite{noor_2013_equilibrator}, which combines the reactant and group contribution methods.
 The reactant contribution (rc) method performs a linear regression to determine the least squares estimates for standard formation energies of metabolites in the training set
@@ -544,12 +548,46 @@ Formally, this means that the vector $[1,-1]$ in $[\sdgf_{\text{ATP}}, \sdgf_{\t
 A side-effect of the Moore-Penrose pseudoinverse is that these $\sdgf$ estimates have a mean of 0, that is, if the optimal $\sdgf_{\text{ATP}} - \sdgf_{\text{ADP}}$ is $10kJ/Mol$, the two estimates would be $-5$ and $5$.
 
 On the other hand, the group contribution (gc) method trades some accuracy for a much greater coverage.
-The assumption behind the gc method is that metabolites can be broken down into counts of their constituent chemical moieties, as shown in Figure \ref{fig:gc}.
-A linear regression on these counts is then performed to estimate the $\dgf$ of a compound of $\dgr$ of a reaction:
+The assumption behind the gc method is that metabolites can be broken down into counts of their constituent chemical moieties, also known as groups, as shown in Figure \ref{fig:gc}.
+A linear regression is then able to estimate the $\sdgr$ with the change in groups over the reaction.
 \begin{align}
-    \bdgf_x =
+    \bsdgr = S^T G \bsdgg + \eps_{gc}\\ %TODO: eps Should be bold?
 \end{align}
+where $G \in \mathbb{R}_(+)^{m \times g}$ is a matrix containing the counts of chemical moieties $1,...,g$ and $\bsdgg \in \mathbb{R}^{g}$ is the formation energy of each chemcial moiety.
+That is, $G \bsdgg$ is a set of estimates for $\bsdgf$, which are then transformed by $\S^T$ to $\bsdgr$ estimates.
+Because metabolites are broken down into a common set of groups, this allows the results of the regression to be applied to reactions that contain metabolites that were not present in the original training set.
+Unfortunately, this assumption is not completely valid with other factors (for example proximity or more complex conformational factors) also playing a role in a compound's foramtion energy.
+Consequently, the $\eps_{gc}$ includes not only the measurement error, but also the sum of these other errors as well, making the predictions less accurate.
 
+\cite{noor_2013_equilibrator} elegantly leverages the linear algebra underlying linear regression to unify the two methods, combining the accurate estimates of reactant contribution with the increased coverage of group contribution.
+Assembling a set of $\sdgr$ values from different sources in a single network can lead to violations in the second law of thermodynamics, as shown in Figure \ref{fig:cc}.
+An alternative is to estimate the $\sdgf$ of all metabolites within a reaction, leaving the $\sdgr$ as the sum of all metabolites multiplied by their stoichiometric coefficients which, by definition, ensures conservation of energy. % TODO: Do I have an equation already?
+This suggests a clear path for combining the two methods: use reactant contribution estimates for $\bsdgf$, and use group contribution estimates for the rest.
+This simple approach is unfortunately complicated by the not-insiginificant set of degenerate metabolites in the training set. % TODO: Is this the right term? They called them conserved something-or-other
+Cofactor pairs cannot be fully determined by the $rc$ method, but their relative formation energies can.
+If their formation energies were replaced with those of the $gc$ method, this accurate information would be lost.
+The solution is to combine estimates from both by projecting the $rc$ $\bsdgf$ estimate onto the range of $S$ and the $gc$ estimate onto the null space of $S^T$.
+In the case of degenerate cofactor pairs, the null space of $S^T$ defines precisely their absolute formation energies, while the range of $S$ defines their relative formation energies.
+When compounds do not participate at all in any training set reactions, they are by definition in the null space of $S^T$ and are estimated entirely with the $gc$ method.
+Conversely, if they are fully determined by reactant contribution, they are not present at all in the null space of $S^T$, and are estimated wholly with the $rc$ method.
+Further detail can be found in \cite{noor_2013_equilibrator}, with a very thorough explanation in the supplementary material of \cite{equilibrator_3_beber_noor}.
+
+% TODO: Add the equations here and maybe include in the above paragraph
+
+\subsubsection{\sdgf covariance estimates}
+While the estimation of the expected value of $$
+
+% TODO: Mention that we're moving from estimates of sdgr to sdgf and that this might be a problem
+
+
+
+
+% TODO: Example daigram showing cc method with mix and match
+
+
+
+
+% TODO: Figure out how to do author citations
 % TODO: The group contribution method is also performed on the reactions! The error is a reaction-specific error.
 
 
