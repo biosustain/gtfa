@@ -190,6 +190,9 @@
 \newcommand{\bb}{\mathbf{b}}
 \newcommand{\bv}{\mathbf{v}}
 \newcommand{\bbe}{\mathbf{be}}
+% Projection matrices
+\newcommand{\projr}{\mathbf{P}_{\mathit{R}(S)}}
+\newcommand{\projn}{\mathbf{P}_{\mathit{N}(S^T)}}
 
 
 
@@ -566,13 +569,68 @@ This suggests a clear path for combining the two methods: use reactant contribut
 This simple approach is unfortunately complicated by the not-insiginificant set of degenerate metabolites in the training set. % TODO: Is this the right term? They called them conserved something-or-other
 Cofactor pairs cannot be fully determined by the $rc$ method, but their relative formation energies can.
 If their formation energies were replaced with those of the $gc$ method, this accurate information would be lost.
-The solution is to combine estimates from both by projecting the $rc$ $\bsdgf$ estimate onto the range of $S$ and the $gc$ estimate onto the null space of $S^T$.
-In the case of degenerate cofactor pairs, the null space of $S^T$ defines precisely their absolute formation energies, while the range of $S$ defines their relative formation energies.
+The solution is to combine estimates from both by projecting the $rc$ $\bsdgf$ estimate onto the range of $S$ with the projection matrix $\projr$ and the $gc$ estimate onto the null space of $S^T$ with the projection matrix $\projn$.
+Here, $\mathit{R}$ and $\mathit{N}$ define the functions that return the range and null space of a matrix respectively.
+In the case of degenerate cofactor pairs, $\mathit{N}(S^T)$ defines precisely their absolute formation energies, while the range of $S$ defines their relative formation energies.
 When compounds do not participate at all in any training set reactions, they are by definition in the null space of $S^T$ and are estimated entirely with the $gc$ method.
 Conversely, if they are fully determined by reactant contribution, they are not present at all in the null space of $S^T$, and are estimated wholly with the $rc$ method.
+Estimates based on the equliibrator method can thus be described by the following equation:
+\[
+    \hat{\bsdgr_x} = \mathbf{X^T}(\projr\bsdgf_{rc} + \projn\bsdgf_{gc})\\
+\]
+where $\hat{\bsdgr_x}$ are the estimates for the matrix $X$ containing the stoichiometry of the reactions being estimated. % TODO: Didn't I define this above already?
 Further detail can be found in \cite{noor_2013_equilibrator}, with a very thorough explanation in the supplementary material of \cite{equilibrator_3_beber_noor}.
 
+Unfortunately, all estimate uncertainty has been defined in terms of the confidence interval.
+It appears that this is not unique to Equilibrator, but has been the only measure of uncertainty up to this point.
+This is problematic, because we are modelling ranges for the true $\bsdgr$ or $\bsdgf$ of the compounds and reactions, while the confidence interval only relates to the estimate.
+A more appropriate measure of uncertainty would in fact be the prediction interval, which includes the influence of random error $\eps$.
+% TODO: Notation? Show the prediction interval here
+This has a number of effects on the application of these variance estimates.
+Firstly and most obviously, the prediction interval gives a higher marginal varaiance for the $\bsdgr$.
+This makes intuitive sense, because with increasing data, the uncertainty about the coefficients drops, even if the linear relationship is weak.
+This leads to a confidence interval which converges to the true parameter value, leaving no uncertainty, even though a weak linear relationship reveals little about the true value of the predicted value.
+This suggests that models up to this point have been to strict in their bounds on $\sdgr$ of reactions by confining them to their 95\% confidence interval.
+This is especially true of $\sdgr$ estimates using the group contribution method, which has a large residual error.
+% TODO Include the methods for estimation above
 % TODO: Add the equations here and maybe include in the above paragraph
+Secondly, the inclusion of the independent errors in the prediciton interval guarantees a full rank covariance matrix for the estimates.
+This matches one's intuition for these estimates, for example in the case of metabolites that have identical group vectors.
+The covariance matrix of the confidence interval of these metabolites is necessarily degenerate because their estimates will always be identical.
+Any sampling strategy based on this matrix, for example the Cholesky decomposition applied in \cite{multiTFA}, \cite{gollub_2021_prob_sampling} and \cite{equilibrator_3_beber_noor},
+ reduces the dimensionality of the normal distribution being sampled from and does not allow these estimates to vary from each other, effectively forcing them to be identical.
+Intuition suggests that, while their estimates will be identical, these values should be allowed to vary from each other.
+This suggests an alternative approach for sampling from the $\bsdgr$ estimates from Equilibrator:
+\[
+    PI(\bsdgr_x^{cc}) = CI(\bsdgr^{cc}) + \mathbf{s^2}^{cc}
+\]
+where $\mathbf{s^2}^{cc}$ is a vector of the appropriate sample variances of each prediction.
+That is $\mathbf{s^2}^{cc} = [\mathbf{s^2}^{rc}, \mathbf{s^2}^{gc}]$, where all reactions purely estimated with $rc$ are placed before those with $gc$ components.
+% TODO: This DEFINITELY needs to be more thought through
+% TODO: Should we still be using the projections?
+% Think a little more about how this could be done.
+
+
+% TODO: Each new variable should be given a domain
+
+% TODO: Notation m_x and m_s?
+% TODO: We're not really looking at the "interval" here per se. Is there another term to use?
+Understanding the prediction and confidence intervals of $\dgf$ is even more complicated because there little data on this property.
+That is, almost all data on formation energies is inferred from known reaction equilibria and their corresponding $\sdgr$.
+In the case of the group contribution method, it is clear that $S^T\hat{\bsdgg)}$ does not approach the true value of $\bsdgf$.
+$\hat{\bsdgg}$ converges to the true value, but when transformed to.
+
+% THE ARGUMENT - given some true reaction values, the values that ST G converges to don't satisfy the 2nd law of thermo.
+
+% TODO: We need a good toy example here.
+% TODO: Perfect dgr from dgf as well as dgr = ST G beta_g + eps
+% TODO: Does this show that G beta_g does not coverge to the real values?
+
+% TODO: This argument needs to be clearer
+
+
+
+
 
 \subsubsection{\sdgf covariance estimates}
 While the estimation of the expected value of $$
