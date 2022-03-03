@@ -618,8 +618,9 @@ That is $\mathbf{s^2}^{cc} = [\mathbf{s^2}^{rc}, \mathbf{s^2}^{gc}]$, where all 
 Understanding the prediction and confidence intervals of $\dgf$ is even more complicated because there little data on this property.
 That is, almost all data on formation energies is inferred from known reaction equilibria and their corresponding $\sdgr$.
 In the case of the group contribution method, it is clear that $S^T\hat{\bsdgg)}$ does not approach the true value of $\bsdgf$.
-$\hat{\bsdgg}$ converges to the true value, but when transformed to.
+$\hat{\bsdgg}$ converges to the true value, but when transformed to an estimate of $\sdgf$, as in \cite{noor_2013_equilibrator}, these estimates converge to values inconsistent with the second law of thermodynamics.
 
+% TODO: Think more about about a counterexample here. Basically, two reactions that have the same group change. The formation energies converge to a value that isn't correct.
 % THE ARGUMENT - given some true reaction values, the values that ST G converges to don't satisfy the 2nd law of thermo.
 
 % TODO: We need a good toy example here.
@@ -628,50 +629,45 @@ $\hat{\bsdgg}$ converges to the true value, but when transformed to.
 
 % TODO: This argument needs to be clearer
 
+We propose a simple method to address this problem, by modelling the formation energies as reactions.
+In the case of metabolites present in the training set, this is guaranteed to be a single covariate.
+From this perspective all of the relevant errors are able to be estimated and this solves the problem of a rank-degenerate covariance matrix.
+While this is not a theoretically sound solution, we believe that this is a step in the right direction and solves all of the above-named problems with current variance estimates.
 
-
-
-
-\subsubsection{\sdgf covariance estimates}
-While the estimation of the expected value of $$
 
 % TODO: Mention that we're moving from estimates of sdgr to sdgf and that this might be a problem
 
-
-
-
 % TODO: Example daigram showing cc method with mix and match
-
-
-
 
 % TODO: Figure out how to do author citations
 % TODO: The group contribution method is also performed on the reactions! The error is a reaction-specific error.
 
-
 % TODO Diagram of the gc method with a compound being broken down into its components.
 % TODO: Get specifics of RMSE of gc and rc from equilibrator
 % TODO: Did the first equilibrator offer the covaraince or was it only later?
-\subsubsection{Rank degenerate covariance matrix and Cholesky decomposition}
-
-\subsection{GTFA formulation}
-
-\subsubsection{$\sdgf$ priors and change of variables}
-
-
-% Flux, b and dgr are LINEAR functions of one another
-
-\subsubsection{}
 
 \subsection{Datasets}
 
-\subsubsection{Toy example}
+GTFA was applied to a number of datasets to demonstrate the sensibility of posterior parameter estimates.
+The first example was borrowed from \cite{PTA} and consists of 4 metabolites, 5 internal reactions and 2 exchange reactions.
+This example is constructed to demonstrate the interaction between $\bv$ and $\bdgr$, with large infeasible regions in $\bdgr$ that correspond to infeasible flux directions.
+In fact, the network only has four possible direcitonality configurations, shown in Figure \ref{fig:toy_configs}.
+This dataset was augmented by a set of enzyme, flux and concentration parameters generated using the equations of Model \ref{mod:final}.
+This allows the generation of data consistent with the GTFA sturcutral assumptions which was then used for a simulation study, ensuring that true parameters could be recovered.
+
+GTFA was also applied to a second simulated dataset based on the methionine cycle.
+In this case, the data was simualated from a more complex kinetic model of metabolism consisting of $x$ reactions and $y$ metabolites. % TODO: Fix
+
+
 
 \subsubsection{Gollub dataset}
 % Need more info here
 
 % Results and Discussion can be combined.
 \section*{Results}
+% TOY DATA
+When examining the $\bdgr$ of the samples, we see the same pattern as in \cite{PTA}, with samples only occurring in regions that allow feasible fluxes.
+Technically, it is feasible that samples in these regions occur, but only in combination with $b$ or $e$ values that give a corresponding flux $v$ below the error threshold of the linear equation solver.
 
 \subsection{Prior on elements of $x$}
 \label{sec:x_prior}
@@ -696,6 +692,19 @@ While the estimation of the expected value of $$
 %
 
 \subsection{Future work}
+
+This work represents a first description of a novel approach to Bayesian modelling of metabolism.
+There are therefore many avenues to explore and questions to answer in the future.
+
+% Parameter concerns
+First of all, the effect of this formulation on parameter estimation has yet to be fully explored.
+Of concern is the possible high correlation between $\bdgr$, $\bb$ and $\be$, all of which are drivers for increased flux.
+If the $\dgr$ of a reaction is not well defined, for example for a reaction whose substrates' $\sdgf$ cannot be estimated, the $\dgr$ estimate may be higher than the true estimate, simply to drive the reaction forward.
+This equation is by definition unphysical, the lack of relationship between $|\dgr|$ and $v$ is universally known and accepted.
+An alternative may be to have the effect of $\dgr$ on the flux saturate, which however unfortunately breaks the neat linear relationship between $\bv$ and $\log{\bc}$.
+
+
+
 % Could gtfa work without fluxomics data - i.e. to predict fluxes?
 % Inclusion of fluxomics data directly - forward and reverse data
 % Inclusion of predictive model into bayesian model? Can you develop a machine learning method of learning latent paramters?
