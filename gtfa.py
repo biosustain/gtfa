@@ -58,23 +58,11 @@ def run_config(config):
 
 
 if __name__ == "__main__":
-    print("RUNNING")
-    logging.getLogger().setLevel(logging.CRITICAL)
-    gollub_files = list((Path(__file__).parent / "data" / "raw" / "from_gollub_2020").glob("**/*.mat"))
-    assert len(gollub_files) > 0
-    temp_dir = Path("temp_dir")
-    if not temp_dir.exists():
-        temp_dir.mkdir()
-    write_gollub2020_models(gollub_files[:1], temp_dir)
-
-
-
-
-    # # Add the script directory to the path
-    # sys.path.append(os.path.dirname(os.path.realpath(__file__)))
-    # # For now all arguments should just be valid paths
-    # args = sys.argv[1:]
-    # check_input(args)
-    # configs = [load_model_configuration(filename) for filename in args]
-    # for config in configs:
-    #     run_config(config)
+    # Add the script directory to the path
+    sys.path.append(os.path.dirname(os.path.realpath(__file__)))
+    # For now all arguments should just be valid paths
+    args = sys.argv[1:]
+    check_input(args)
+    configs = [load_model_configuration(filename) for filename in args]
+    for config in configs:
+        run_config(config)

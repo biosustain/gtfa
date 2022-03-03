@@ -27,7 +27,8 @@ DEFAULT_EXCHANGE_MEAN = 0
 DEFAULT_EXCHANGE_SCALE = 1
 DEFAULT_B_MEAN = 3
 DEFAULT_B_SCALE = 3
-
+FIXED_MIC_EPSILON = 1e-5  # The standard deviation of values that considered to have no variance
+FIXED_DGF_EPSILON = 1e-2  # The variance for dgf values that are considered to have no variance. High because of numerical issues.
 
 @dataclass
 class IndPrior1d:
@@ -230,6 +231,15 @@ def get_stan_input(
     check_input(measurements, priors)
     coords = get_coords(S, measurements, priors, order)
     measurements_by_type = group_measurement_types(likelihood, measurements)
+    # Add a small constant for concentration values that should be fixed
+    measurements_by_type["mic"].loc[measurements_by_type["mic"]["error_scale"] == 0, "error_scale"] = FIXED_MIC_EPSILON
+    # Add a small constant for dgf values with no variance
+    zero_cols = ~priors_cov.any()
+    zero_rows = ~priors_cov.any(axis=1)
+    assert (zero_cols == zero_rows).all(), "The covariance matrix should be symmetric"
+    priors_cov.loc[zero_cols, zero_cols] = np.diag(np.full(zero_cols.sum(), FIXED_DGF_EPSILON))
+    assert np.linalg.matrix_rank(priors_cov) == len(priors_cov), "The covariance matrix should be full rank"
+    # Transform into measurements for the model
     free_exchange = get_name_ordered_overlap(coords, "reaction_ind", ["exchange", "free_x_names"])
     free_met_conc = get_name_ordered_overlap(coords, "metabolite_ind", ["metabolite", "free_x_names"])
     prior_b = extract_prior_2d("b", priors, coords["internal_names"], coords["condition"], DEFAULT_B_MEAN, DEFAULT_B_SCALE)
