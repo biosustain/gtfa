@@ -82,6 +82,8 @@ def load_model_configuration(path: str) -> ModelConfiguration:
         mc.result_dir = Path(path).parent / mc.result_dir
     if not mc.data_folder.is_absolute():
         mc.data_folder = Path(path).parent / mc.data_folder
+    if not mc.stan_file.is_absolute():
+        mc.stan_file = Path(path).parent / mc.stan_file
     # Check the paths
     validate_model_configuration(mc)
     return mc
