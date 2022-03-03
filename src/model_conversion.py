@@ -1,133 +1,107 @@
 import logging
 import pathlib
-from copy import deepcopy
 
 import cobra.util.array
-from cobra import Model, Reaction, Metabolite
-from equilibrator_api import ComponentContribution
 import numpy as np
 import pandas as pd
+import scipy
+
+from src import util
+from src.dgf_estimation import calc_model_dgfs_with_prediction_error
 
 PROTON_INCHI = "InChI=1S/p+1"
 
 logger = logging.getLogger(__name__)
 
+root_dir = pathlib.Path(__file__).parent.parent
 
-def write_model_files(met_model: Model, model_dir: pathlib.Path, eps=1e-4, cc=None):
-    """
-    Take a multitfa tmodel and write priors.csv and stoichiometry.csv files
-    :return:
-    """
-    # Add the metabolite and reaction names
-    mets = [tmet.id for tmet in met_model.metabolites]
-    rxns = [trxn.id for trxn in met_model.reactions]
-    # Write the stoichiometric matrix
-    S = cobra.util.array.create_stoichiometric_matrix(met_model)
-    s_to_write = pd.DataFrame(S)
-    s_to_write.columns = rxns
-    s_to_write.columns.name = "reactions"
-    s_to_write.index = mets
-    s_to_write.index.name = "metabolite"
-    # Calculate the means and covariance matrix of the dgfs
-    dgf_means, dgf_cov = calc_model_dgfs(met_model, cc=cc)
-    # Convert to a dataframe
-    dgf_cov = pd.DataFrame(dgf_cov, columns=mets, index=mets)
+
+def write_gollub2020_models(mat_files: [pathlib.Path], model_dir: pathlib.Path):
+    """ Read in the model files from the Gollub2020 PTA paper.
+
+    This requires special attention because there are some extra properties that need to be accounted for"""
+    mat_files = list(mat_files)
+    assert len(mat_files) > 0, "No mat files provided"
+    # Get the condition names
+    condition_names = [path.stem.split("2015_")[1] for path in mat_files]
+    dgf_means = []
+    dgf_covs = []
+    met_conc_means = []
+    log_conc_sd = []
+    stoichiometric_matrices = []
+    for mat_file in mat_files:
+        model_struct = scipy.io.loadmat(mat_file)
+        # Read in the model
+        model = cobra.io.mat.from_mat_struct(model_struct["model"])
+        # Add the membrane potential correction
+        model.dgr_memb_correction = model_struct["model"]["drgCorr"][0, 0].flatten()
+        # Get a list of excluded reactions
+        exclude_rxns = model_struct["model"]["isConstraintRxn"][0, 0].flatten() == 0
+        model.Exclude_list = [model.reactions[i].id for i in np.where(exclude_rxns)[0]]
+        # Convert to a pandas dataframe
+        S_df = util.get_smat_df(model)
+        stoichiometric_matrices.append(S_df)
+        # Get the dgf means
+        dgfs, dgf_cov = calc_model_dgfs_with_prediction_error(model)
+        dgf_means.append(dgfs)
+        dgf_covs.append(dgf_cov)
+        # Get the log concentration means
+        log_conc_means = model_struct["model"]["logConcMean"][0, 0].flatten()
+        met_conc_means.append(log_conc_means)
+        log_conc_cov = model_struct["model"]["logConcCov"][0, 0]
+        # Get the diagonal of the matrix
+        log_conc_sd.append(np.sqrt(np.diag(log_conc_cov)))
+    # Check that the dgf priors are the same for all conditions
+    assert all(len(dgfs) == len(dgf_means[0]) for dgfs in dgf_means) and \
+           all(np.allclose(dgf_means[0], dgf_means[i]) for i in range(1, len(dgf_means)))
+    # Check that the covariance matrices are the same for all conditions
+    assert all(dgfs.shape[0] == dgf_means[0].shape[0] for dgfs in dgf_means) and \
+           all(np.allclose(dgf_covs[0], dgf_covs[i]) for i in range(1, len(dgf_covs)))
+    # All stoichiometric matrices should be the same
+    assert all(np.allclose(stoichiometric_matrices[0], stoichiometric_matrices[i]) for i in
+               range(1, len(stoichiometric_matrices)))
+    # Send the files for writing
+    write_model_files(model_dir, stoichiometric_matrices[0], dgf_means[0], dgf_covs[0], condition_names,
+                      met_conc_means, log_conc_sd)
+
+
+def make_dgf_df(met_ids, dgf_means):
     # Write the enzyme concentration priors
-    num_mets = len(met_model.metabolites)
-    column_data = zip(["dgf"] * num_mets, mets, [""] * num_mets, dgf_means)
-    dgf_df = pd.DataFrame(column_data)
-    dgf_df.columns = ["parameter", "target_id", "condition_id", "loc"]
-    dgf_df = dgf_df.set_index("parameter")
-    # Write the final files
-    dgf_df.to_csv(model_dir / "priors.csv")
-    s_to_write.to_csv(model_dir / "stoichiometry.csv")
-    dgf_cov.to_csv(model_dir / "priors_cov.csv")
-    # The concentration/enzyme/exchange priors are all represented by the defaults
+    num_mets = len(met_ids)
+    cols = ["parameter", "target_id", "condition_id", "loc", "scale"]
+    column_data = zip(["dgf"] * num_mets, met_ids, [""] * num_mets, dgf_means, [""] * num_mets)
+    dgf_df = pd.DataFrame(column_data, columns=cols)
+    return dgf_df
 
 
-def calc_model_dgfs(model, cc=None):
-    """
-    With the given predictor, calculate the formation energies of all metabolites in the model.
-
-    Some of this code was borrowed from the equilibrator tutorial
-    https://equilibrator.readthedocs.io/en/latest/equilibrator_examples.html
-    :param model:
-    :return:
-    """
-    if cc is None:
-        cc = ComponentContribution()
-    compound_ids = [m.id for m in model.metabolites]
-    compound_list = get_eq_compounds(model, cc)
-    standard_dgf_mu, sigmas_fin, sigmas_inf = zip(*map(cc.standard_dg_formation, compound_list))
-    standard_dgf_mu, sigmas_fin, sigmas_inf = np.array(standard_dgf_mu, dtype=float), np.array(sigmas_fin), \
-                                              np.array(sigmas_inf)
-    # Account for protons
-    proton_inds = [i for i, m in enumerate(compound_list) if m.inchi == PROTON_INCHI]
-    missing_inds = [i for i, m in enumerate(standard_dgf_mu) if np.isnan(m)]
-    assert np.array_equal(proton_inds, missing_inds), "Estimation of proton formation " \
-                                                         "energies should not be supported"
-    # Any of the non-missing values can tell us the number of groups
-    num_fin_groups = sigmas_fin[~np.isnan(standard_dgf_mu)][0].shape[0]
-    num_inf_groups = sigmas_inf[~np.isnan(standard_dgf_mu)][0].shape[0]
-    for missing_ind in missing_inds:
-        standard_dgf_mu[missing_ind] = 0
-        sigmas_inf[missing_ind] = np.zeros(num_inf_groups)
-        sigmas_fin[missing_ind] = np.zeros(num_fin_groups)
-    # Transform into matrices
-    sigmas_inf = np.vstack(sigmas_inf)
-    sigmas_fin = np.vstack(sigmas_fin)
-    # we now apply the Legendre transform to convert from the standard ΔGf to the standard ΔG'f
-    delta_dgf_list = np.array([
-        cpd.transform(cc.p_h, cc.ionic_strength, cc.temperature, cc.p_mg).m_as("kJ/mol")
-        for cpd in compound_list
-    ])
-    standard_dgf_prime_mu = standard_dgf_mu + delta_dgf_list
-    # to create the formation energy covariance matrix, we need to combine the two outputs
-    # sigma_fin and sigma_inf
-    standard_dgf_cov = sigmas_fin @ sigmas_fin.T + 1e6 * sigmas_inf @ sigmas_inf.T
-    return pd.Series(standard_dgf_prime_mu, index=compound_ids), pd.DataFrame(standard_dgf_cov, index=compound_ids,
-                                                                              columns=compound_ids)
+def make_met_conc_df(met_ids, log_conc_means, log_met_sd, condition_name):
+    # Check the input
+    if all((log_conc_means >= 0) & (log_conc_means <= 1)):
+        assert False, "All log concentrations are between 0 and 1, are you sure they are not actually concentrations?"
+    # Write the enzyme concentration priors
+    num_mets = len(log_conc_means)
+    cols = ["measurement_type", "target_id", "condition_id", "measurement", "error_scale"]
+    column_data = zip(["mic"] * num_mets, met_ids, [condition_name] * num_mets, np.exp(log_conc_means), log_met_sd)
+    dgf_df = pd.DataFrame(column_data, columns=cols)
+    return dgf_df
 
 
-def get_eq_compounds(model, cc):
-    compound_names = []
-    for m in model.metabolites:
-        if "_" in m.id:
-            compound_names.append("_".join(m.id.split("_")[:-1]))
-        else:
-            compound_names.append(m.id)
-    compound_list = [cc.get_compound(f"bigg.metabolite:{cname}") for cname in compound_names]
-    # Read in the IDs and use the kegg IDs if the BIGG IDs can not be found
-    ids_path = pathlib.Path(__file__).parent.parent / "data" / "raw" / "from_gollub_2020" / "compound_ids.csv"
-    id_df = pd.read_csv(ids_path, index_col=0).drop_duplicates()
-    for i, compound in enumerate(compound_list):
-        if compound is not None:
-            continue
-        name = compound_names[i]
-        # Search for a kegg annoation first
-        anns = model.metabolites[i].annotation
-        if "kegg.compound" in anns:
-            # The model contains a kegg annoation for the metabolite
-            matches = [anns['kegg.compound']]
-        elif name in id_df.index:
-            # Search through the manual annoations for metabolites
-            matches = id_df.at[name, 'Kyoto Encyclopedia of Genes and Genomes']
-            if "|" in matches:
-                matches = matches.split("|")
-            else:
-                matches = [matches]
-        else:
-            assert False, f"Could not find a kegg ID for {name}"
-        # Find all compounds
-        match_ids = [cc.get_compound(f"kegg:{match_id}") for match_id in matches]
-        # Check that all non-None compounds are the same
-        valid_matches = [match for match in match_ids if match is not None]
-        if len(valid_matches) == 0:
-            logger.warning(f"Could not find compound {name}")
-        elif len(valid_matches) > 1:
-            if not all(match == valid_matches[0] for match in valid_matches):
-                logger.warning(f"Multiple conflicting matches for compound {name}. Using first match.")
-            compound_list[i] = valid_matches[0]
-        else:
-            compound_list[i] = valid_matches[0]
-    return compound_list
+def write_model_files(model_dir, S, dgf_means, dgf_cov_mat, conditions=None, log_conc_means=None, log_met_sd=None):
+    met_ids = S.index
+    cov = pd.DataFrame(dgf_cov_mat, columns=met_ids, index=met_ids)
+    dgf_df = make_dgf_df(met_ids, dgf_means)
+    dgf_df.to_csv(model_dir / "priors.csv", index=False)
+    S.to_csv(model_dir / "stoichiometry.csv")
+    cov.to_csv(model_dir / "priors_cov.csv")
+    if log_conc_means is not None:
+        assert log_met_sd is not None and conditions is not None, "Means, conditions and std devations should be present for log metabolites"
+        assert len(conditions) == len(log_conc_means) == len(
+            log_met_sd), "The lengths of conditions, log_met_means and " \
+                         "log_met_sd should be the same"
+        all_measurements = []
+        for i, condition in enumerate(conditions):
+            assert len(log_met_sd[i].shape) == 1, "The log_met_sd should be a vector"
+            log_met_df = make_met_conc_df(met_ids, log_conc_means[i], log_met_sd[i], condition)
+            all_measurements.append(log_met_df)
+        all_measurements = pd.concat(all_measurements)
+        all_measurements.to_csv(model_dir / "measurements.csv", index=False)
