@@ -8,7 +8,7 @@ import arviz as az
 from src.fitting import run_stan
 from src.model_configuration import load_model_configuration
 from src.pandas_to_cmdstanpy import get_coords
-from model_setup import model_small, model_small_rankdef, model_small_rankdef_thermo
+from .model_setup import model_small, model_small_rankdef, model_small_rankdef_thermo
 
 
 @pytest.mark.usefixtures("model_small")

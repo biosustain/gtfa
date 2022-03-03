@@ -5,7 +5,7 @@ import pytest
 
 # Do not remove!
 from gtfa import run_config
-from model_setup import model_small
+from .model_setup import model_small
 from src.model_configuration import load_model_configuration
 
 
