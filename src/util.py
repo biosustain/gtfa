@@ -2,6 +2,8 @@
 import itertools
 import logging
 from typing import Iterable, Tuple, Dict
+
+import cobra
 import numpy as np
 import pandas as pd
 from scipy.stats import norm
@@ -202,3 +204,13 @@ def to_dataframe(mcmc, dims, coords):
     # Reorder the levels to have the conditions then indices
     df.columns = df.columns.reorder_levels([0, 1, 3, 2])
     return df
+
+def get_smat_df(model):
+    S = cobra.util.array.create_stoichiometric_matrix(model)
+    # Convert to a pandas dataframe
+    met_ids = [met.id for met in model.metabolites]
+    rxn_ids = [rxn.id for rxn in model.reactions]
+    S_df = pd.DataFrame(S, index=met_ids, columns=rxn_ids)
+    S_df.index.name = "metabolite"
+    S_df.columns.name = "reaction"
+    return S_df
