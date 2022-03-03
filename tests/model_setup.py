@@ -3,18 +3,33 @@ import shutil
 import sys
 from pathlib import Path
 
+import numpy as np
 from equilibrator_api import ComponentContribution
 import pandas as pd
 import pytest
 from cobra import Model, Metabolite, Reaction
 from cobra.io import load_model
 
-from src import model_conversion
+from src import model_conversion, util
+from src.dgf_estimation import calc_model_dgfs_with_prediction_error
+from src.pandas_to_cmdstanpy import DEFAULT_MET_CONC_MEAN, DEFAULT_MET_CONC_SCALE
+from src.util import get_smat_df
 
 logger = logging.getLogger(__name__)
 formatter = logging.Formatter('%(asctime)s | %(name)s | %(levelname)s | %(message)s')
 # This makes the tests run faster
 cc = None
+base_dir = Path(__file__).parent.parent
+
+
+@pytest.fixture
+def temp_dir():
+    temp_dir = Path(base_dir / "tests" / "temp_dir").absolute()
+    if temp_dir.exists():
+        shutil.rmtree(temp_dir)
+    temp_dir.mkdir()
+    yield temp_dir
+    shutil.rmtree(temp_dir)
 
 
 @pytest.fixture
@@ -25,18 +40,22 @@ def ecoli_model():
     stream_handler.setFormatter(formatter)
     logger.addHandler(stream_handler)
     # Write the files
-    tmodel = load_model("e_coli_core")
-    test_dir = Path("test_dir")
-    if test_dir.exists():
-        shutil.rmtree(test_dir)
-    result_dir = test_dir / "results"
+    model = load_model("e_coli_core")
+    log_concs, log_conc_scales = gen_random_log_concs(model)
+    dgfs, dgf_covs = calc_model_dgfs_with_prediction_error(model, cc)
+    S = get_smat_df(model)
+    temp_dir = Path("temp_dir")
+    if temp_dir.exists():
+        shutil.rmtree(temp_dir)
+    result_dir = temp_dir / "results"
     result_dir.mkdir(parents=True)
     if cc is None:
         cc = ComponentContribution()
-    model_conversion.write_model_files(tmodel, test_dir, cc=cc)
-    yield tmodel
+    # Get the dgfs
+    model_conversion.write_model_files(temp_dir, S, dgfs, dgf_covs, ["1"], [log_concs], [log_conc_scales])
+    yield model
     # Clean up
-    shutil.rmtree(test_dir)
+    shutil.rmtree(temp_dir)
 
 
 @pytest.fixture
@@ -47,23 +66,26 @@ def model_small():
     stream_handler.setFormatter(formatter)
     logger.addHandler(stream_handler)
     # Write the files
-    tmodel = build_small_test_model()
-    test_dir = Path("test_dir")
-    result_dir = test_dir / "results"
-    if test_dir.exists():
-        shutil.rmtree(test_dir)
-    test_dir.mkdir()
+    model = build_small_test_model()
+    log_concs, log_conc_scales = gen_random_log_concs(model)
+    dgfs, dgf_covs = calc_model_dgfs_with_prediction_error(model, cc)
+    S = get_smat_df(model)
+    temp_dir = Path("temp_dir")
+    result_dir = temp_dir / "results"
+    if temp_dir.exists():
+        shutil.rmtree(temp_dir)
+    temp_dir.mkdir()
     result_dir.mkdir()
     if cc is None:
         cc = ComponentContribution()
-    model_conversion.write_model_files(tmodel, test_dir, cc=cc)
+    model_conversion.write_model_files(temp_dir, S, dgfs, dgf_covs, ["1"], [log_concs], [log_conc_scales])
     # We need at least one measurment
     header = pd.DataFrame(columns=["measurement_type","target_id","condition_id","measurement","error_scale"],
                           data=[["mic", "f6p_c", "condition_1", 0.001, 0.1]])
-    header.to_csv(test_dir / "measurements.csv", index=False)
-    yield tmodel
+    header.to_csv(temp_dir / "measurements.csv", index=False)
+    yield model
     # Clean up
-    shutil.rmtree(test_dir)
+    shutil.rmtree(temp_dir)
 
 
 @ pytest.fixture
@@ -74,23 +96,26 @@ def model_small_rankdef():
     stream_handler.setFormatter(formatter)
     logger.addHandler(stream_handler)
     # Write the files
-    tmodel = build_small_test_model_rankdef_stoich()
-    test_dir = Path("test_dir")
-    result_dir = test_dir / "results"
-    if test_dir.exists():
-        shutil.rmtree(test_dir)
-    test_dir.mkdir()
+    model = build_small_test_model_rankdef_stoich()
+    log_concs, log_conc_scales = gen_random_log_concs(model)
+    dgfs, dgf_covs = model_conversion.calc_model_dgfs_with_prediction_error(model, cc)
+    S = get_smat_df(model)
+    temp_dir = Path("temp_dir")
+    result_dir = temp_dir / "results"
+    if temp_dir.exists():
+        shutil.rmtree(temp_dir)
+    temp_dir.mkdir()
     result_dir.mkdir()
     if cc is None:
         cc = ComponentContribution()
-    model_conversion.write_model_files(tmodel, test_dir, cc=cc)
+    model_conversion.write_model_files(temp_dir, S, dgfs, dgf_covs, ["1"], [log_concs], [log_conc_scales])
     # We need at least one measurment
     header = pd.DataFrame(columns=["measurement_type","target_id","condition_id","measurement","error_scale"],
                           data=[["mic", "f6p_c", "condition_1", 0.001, 0.1]])
-    header.to_csv(test_dir / "measurements.csv", index=False)
-    yield tmodel
+    header.to_csv(temp_dir / "measurements.csv", index=False)
+    yield model
     # Clean up
-    shutil.rmtree(test_dir)
+    shutil.rmtree(temp_dir)
 
 @pytest.fixture
 def model_small_rankdef_thermo():
@@ -100,24 +125,26 @@ def model_small_rankdef_thermo():
     stream_handler.setFormatter(formatter)
     logger.addHandler(stream_handler)
     # Write the files
-    tmodel = build_small_test_model_rankdef_thermo()
-    test_dir = Path("test_dir")
-    result_dir = test_dir / "results"
-    if test_dir.exists():
-        shutil.rmtree(test_dir)
-    test_dir.mkdir()
+    model = build_small_test_model_rankdef_thermo()
+    log_concs, log_conc_scales = gen_random_log_concs(model)
+    dgfs, dgf_covs = model_conversion.calc_model_dgfs_with_prediction_error(model, cc)
+    S = get_smat_df(model)
+    temp_dir = Path("temp_dir")
+    result_dir = temp_dir / "results"
+    if temp_dir.exists():
+        shutil.rmtree(temp_dir)
+    temp_dir.mkdir()
     result_dir.mkdir()
     if cc is None:
         cc = ComponentContribution()
-    model_conversion.write_model_files(tmodel, test_dir, cc=cc)
+    model_conversion.write_model_files(temp_dir, S, dgfs, dgf_covs, ["1"], [log_concs], [log_conc_scales])
     # We need at least one measurment
     header = pd.DataFrame(columns=["measurement_type","target_id","condition_id","measurement","error_scale"],
                           data=[["mic", "f6p_c", "condition_1", 0.001, 0.1]])
-    header.to_csv(test_dir / "measurements.csv", index=False)
-    yield tmodel
+    header.to_csv(temp_dir / "measurements.csv", index=False)
+    yield model
     # Clean up
-    shutil.rmtree(test_dir)
-
+    shutil.rmtree(temp_dir)
 
 
 def build_small_test_model_rankdef_stoich():
@@ -130,9 +157,9 @@ def build_small_test_model_rankdef_stoich():
     model.add_metabolites([
         Metabolite(id="f6p_c", name="Fructose 6 phosphate", compartment="c"),
         Metabolite(id="g6p_c", name="Glucose 6 phosphate", compartment="c"),
-        Metabolite(id="ATP", name="ATP", compartment="c"),
+        Metabolite(id="atp_c", name="ATP", compartment="c"),
         Metabolite(id="f1p_c", name="Fructose 1 phosphate", compartment="c"),
-        Metabolite(id="ADP", name="ADP", compartment="c"),
+        Metabolite(id="adp_c", name="ADP", compartment="c"),
         Metabolite(id="g1p_c", name="Glucose 1 phosphate", compartment="c")
 
     ])
@@ -141,8 +168,8 @@ def build_small_test_model_rankdef_stoich():
                          ])
     # Add the reactions
     # Add the stoichiometry
-    model.reactions[0].build_reaction_from_string("f6p_c + ADP <--> f1p_c + ATP")
-    model.reactions[1].build_reaction_from_string("g6p_c + ATP <--> g1p_c + ADP")
+    model.reactions[0].build_reaction_from_string("f6p_c + adp_c <--> f1p_c + atp_c")
+    model.reactions[1].build_reaction_from_string("g6p_c + atp_c <--> g1p_c + adp_c")
     # Boundary reactions
     model.add_boundary(model.metabolites.get_by_id("f6p_c"), type="sink")
     model.add_boundary(model.metabolites.get_by_id("f1p_c"), type="exchange")
@@ -236,3 +263,11 @@ def build_small_test_model_rankdef_thermo():
     model.metabolites[5].annotation = {"kegg.compound": "C00008"}
     model.metabolites[6 ].annotation = {"kegg.compound": "C00009"}
     return model
+
+
+def gen_random_log_concs(model):
+    np.random.seed(0)
+    n_mets = len(model.metabolites)
+    locs = np.full(n_mets, DEFAULT_MET_CONC_MEAN)
+    scales = np.full(n_mets, DEFAULT_MET_CONC_SCALE)
+    return np.random.normal(locs, scales), np.full(n_mets, DEFAULT_MET_CONC_SCALE)
