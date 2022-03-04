@@ -157,6 +157,7 @@
 \usepackage{lastpage,fancyhdr,graphicx}
 \usepackage{epstopdf}
 \usepackage{amsfonts}
+\usepackage{natbib}
 %\pagestyle{myheadings}
 \pagestyle{fancy}
 \fancyhf{}
@@ -275,17 +276,25 @@ Lars Nielsen\textsuperscript{2,3},
 \section*{Introduction}
 
 % TODO: Longer intro to the field in general?
-Modelling of feasible intracellular fluxes has long been a key task in metabolic engineering.
-If little data is available, the space of valid fluxes can be relatively large, limited only by fundamental reaction stoichiometry and mass-balance laws:
+Modelling of feasible intracellular fluxes has long been a key task in metabolic engineering, with the end goal being the most accurate picture of internal fluxes of a microorganism given sparse data.
+If little data is available, the space of valid fluxes can be relatively large, limited only by fundamental reaction stoichiometry and mass-balance laws
 \[
     \label{eq:steady_state}
     0 = S\cdot \mathbf{v}
 \]
+
+% QUOTE FROM PAPER: Include A positive stoichiometric coefficient means that the metabolite is produced by reaction An and a negative entry indicates that the metabolite is consumed in that reaction.
+
 with $S \in \mathbb{Z}^{m\times r}$ representing the stoichiometric matrix, which contains the stoichiometric coefficients of the $m$ metabolites in the $r$ reactions in the metabolic network and $\mathbf{v} \in \mathbb{R}^r$ representing the fluxes of reactions $1,\dots,r$.
-If more data is available, this space can be further constrained by known kinetics and regulatory interactions of metabolic enzymes.
-A single most-parsimonious solution can then be obtained, with parsiomny determined by maximising biomass production, nearness to measured data or other objective functions {TODO: Others?}.
-However, it is a difficult task for these simple measures of parsimony to define true intracellular conditions from such large spaces of viable fluxes.
-An alternative is to characterise the entire space of vaiable fluxes, usually with some form of sampling. {TODO: Further references here}
+If more data is available, this space can be further constrained by known thermodynamics, kinetics and regulatory interactions of metabolic enzymes.
+From this space of valid fluxes a single most-parsimonious solution can then be obtained, with parsiomny determined by maximising biomass production, nearness to measured data or other objective functions. % TODO: Find information about objective functions from the paper
+This leads to a point estimate of the likely intracellular fluxes, where the objective function is a proxy for the feasiblity of the fluxes.
+However, a single point estimate may not faithfully represent the entire space of possible fluxes, for example if there are multiple modes of possible feasible fluxes.
+An alternative is to characterise the entire space of vaiable fluxes, usually with some form of sampling.
+
+% IDEA FROM PAPER - sampling is nice because the effect of any constraints can be easily examined - you split the samples into those that satisfy and don't satisfy the constraints
+
+Sampling methods can be broadly split into Bayesian and non-Bayesian models.
 
 Methods 1,2 {TODO: Research these} were developed to sample uniformly from the space of steady-state fluxes.
 Saa {TODO: Citation} extended these methods to exclude loops from the flux space, which are known to violate the 2nd law of thermodynamics.
@@ -327,6 +336,8 @@ However, both of these methods discard useful probabistic information about thes
 ~\cite{PTA} {TODO: The exact method} addresses this problem by sampling from the space of valid thermodynamic orthants, i.e. flux directions, with the probabilty of each orthant determined by the probability of $\sdgr$ and metabolite concentrations within it.
 Unfortunately, this method still restricts the space of valid concentrations and $\sdgr$ to the 95\% confidence interval, although, to the authors' knowledge, this is not necessary.
 Additionally, the hit-and-run sampling method described in~\cite{PTA} requires multiple linear programming evaluations per sample, to ensure that samples satisfy steady state (Eq~\ref{eq:steady_state}), which can inhibit computational performance.
+
+% TODO: Talk about thermodynamics here. How hard and time-consuming it is to estimate. Problems with coverage of existing methods. What to do with unknown compounds?
 
 In this work, I present an alternative approach to defining and sampling from the space of fluxes that satisfy both steady-state and thermodynamic constraints.
 Generative Thermodynamic Flux Analysis (GTFA) is a method for sampling thermodynamically valid fluxes with respect to the probability that these fluxes match measured metabolite concentrations and standard formation energies.
@@ -701,8 +712,55 @@ First of all, the effect of this formulation on parameter estimation has yet to 
 Of concern is the possible high correlation between $\bdgr$, $\bb$ and $\be$, all of which are drivers for increased flux.
 If the $\dgr$ of a reaction is not well defined, for example for a reaction whose substrates' $\sdgf$ cannot be estimated, the $\dgr$ estimate may be higher than the true estimate, simply to drive the reaction forward.
 This equation is by definition unphysical, the lack of relationship between $|\dgr|$ and $v$ is universally known and accepted.
-An alternative may be to have the effect of $\dgr$ on the flux saturate, which however unfortunately breaks the neat linear relationship between $\bv$ and $\log{\bc}$.
+An alternative may be to have the effect of $\dgr$ on the flux saturate.
+However, this unfortunately breaks the useful linear relationship between $\bv$ and $\log{\bc}$.
+Another problem is the flux scaling parameter $b$, which is difficult to characterise with a prior.
+One option is to refer the the literature of $k_{app}$ {TODO: Is this correct?}.
+% TODO: Write more about the k apparent here.
 
+The speed of GTFA make it applicable for a number of exciting applications.
+A primary target could be the estimation of the $\sdgf$ of compounds that cannot be estimated by current methods, such as equilibrator.
+As the number of model conditions increases, our estimates of the true shared $\sdgf$ parameters also improves, including compounds without prior information.
+This could be invaluable for further modelling, where tighter bounds on the thermodynamic properties of compounds allow for more accurate results.
+Additionally, GTFA could be very interesting as a "first pass" method for generating priors for more complex kinetic models.
+% TODO: Possible applications for the approach as it is
+% Because it is fast we could use it simultaneously on many conditions at once -> Narrow down on thermodynamic params
+
+Extensions to the model that incorporate more measureable data would allow for tighter fits and more accurate parameter estimates.
+One key element would be the inclusion of direct fluxomics data into the model.
+Currently, fluxomics data is provided in the form of measured fluxes through reactions.
+These can either be inferred through Eueler's method {TODO: Check this}, that is, by inferring exchange fluxes by measuring the changes in extracellular metabolite concentrations or by tracking the movement of labelled atoms through the system.
+A constraint-based method called Metabolic Flux Analysis (MFA) is typically applied {TODO: Citation} to find the most likely flux distribtuion given this set of labels, but recently Bayesian alternatives have also been developed {TODO: Citation}.
+Importantly, these concentrations of labelled metabolites provide information not only on the likely fluxes, but also about reaction thermodynamics.
+While the net flux passing through an enzyme is largely independent of $\dgr$, the forward and reverse fluxes decidedly are.
+When a reaction is at equilibrium, which is rarely the case in biology, the rates of the forward and reverse reactions are equal, but not 0.
+This is an important consideration when the reactant and product pools contain differently-labelled atoms, a process called mixing. %TODO: is it?
+This suggests that the degree of mixing between the reactants and products of a reaction, when taken in the context of the overall fluxes, can reveal some information about the thermodynamics of this reaction under the measured conditions.
+The integration of reaction thermodynamics into Bayesian MFA could be a very interesting avenue of research into the future, providing a further source of systems-wide information into reaction thermodynamics.
+
+An alternative for the estimation of $\sdgf$ of unknown compounds (and thus the $\sdgr$ of reactions containing those compounds) is to discern the relationship between compound structure and formation energy.
+\citet{quantum} attempted to determine the formation energies from first principles using quantum chemistry, but unfortunately did not continue this line of research. %TODO Read the paper
+Alternatively, one can leverage machine learning methods to discern the functional relationship from existing data.
+Unfortunately, due to the time-consuming process of gathering formation energy and reaction equilibrium data, there is not a large amount of data available on which to train these models.
+This is in contrast to many other forms of compound-level data, for example 3D structure, toxicity etc. % TODO:
+One option is to apply the technique of transfer learning, training a neural network to perform a task with more abundant data and then adapting this semantically-rich feature representation to the new data-poor task.
+\cite{3dinfomax} applied transfer learning to a range of molecular regression and classification tasks, by applying a feature representation optimised for predicing the compounds' 3D structures.
+
+An alternative, is to use machine learning or statistical models to directly predict latent parameters of Bayesian models.
+In this case, this would involve using ML models to predict the $\sdgf$ of the compounds in the network, with the likelihood of these parameters representing the loss function of the ML model's parameters.
+The parameters of the machine learning model could then be optimised either within the Bayesian model itself (with MCMC) or with traditional methods (such as gradient descent) with this new loss function.
+This leverages the fact that more abundant -omics data and an accurate model structure provide information about likely thermodynamic parameters, even when these parameters cannot be measured directly.
+For example, by integrating the linear regression of the group contribution method (Eq. \ref{eq:gc}) into GTFA, it would be possible to estimate the formation energy for groups that are not present in the original training dataset, expanding the coverage of the method to compounds that include that group.
+Even a small amount of data could considerably reduce the uncertainty in these groups, which are currently modeled as normal with mean 0 and standard deviation 10,000.
+Alternatively, more complex graph neural networks could be applied to the same task, now with much larger datasets available.
+Of course, the computational complexity of embedding the data in Bayesian models could quickly become and issue, especially in this case where many conditions, each with their own model parameters, would be required.
+Nevertheless, making use of these ever-growing -omics datasets could be the only option if more reaction equilibrium data does not become available.
+
+
+
+
+
+% TODO: Talk about quantum chemistry paper
 
 
 % Could gtfa work without fluxomics data - i.e. to predict fluxes?
