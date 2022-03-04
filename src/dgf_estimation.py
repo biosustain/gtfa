@@ -4,6 +4,8 @@ import pathlib
 import numpy as np
 import pandas as pd
 from equilibrator_api import ComponentContribution
+from equilibrator_cache import Compound, Q_
+from equilibrator_cache.exceptions import MissingDissociationConstantsException
 
 root_dir = pathlib.Path(__file__).parent.parent
 logger = logging.getLogger(__name__)
@@ -20,8 +22,16 @@ def calc_model_dgfs_with_prediction_error(model, cc=None):
     """
     if cc is None:
         cc = ComponentContribution()
+    compound_ids = [m.id for m in model.metabolites]
+    compound_list = get_eq_compounds(model, cc)
     # A dataframe with the manually calculated group decompositions
-    dgf_means, dgf_cov, met_groups, missing_estimates = get_cov_eq(model, cc)
+    dgf_means, dgf_cov, met_groups, missing_estimates = get_cov_eq(cc, compound_ids, compound_list)
+    # Add the legendre transform to the formation energies for the different compartments
+    if hasattr(model, "compartment_conditions"):
+        adjustment = calculate_legendre_transform(compound_ids, compound_list, model)
+        dgf_means += adjustment
+    else:
+        logger.warning("No compartment conditions found in the model. The legendre transform were not applied")
     # Add the prediction error to compounds outside the training set that were estimated with the gc method
     N_cc = cc.predictor.preprocess.Nc
     MSE_gc = cc.predictor.params.MSE.loc["gc"]
@@ -39,12 +49,25 @@ def calc_model_dgfs_with_prediction_error(model, cc=None):
     return dgf_means, dgf_cov
 
 
-def get_cov_eq(model, cc):
+def calculate_legendre_transform(compound_ids, compound_list, model):
+    adjustments = np.zeros(len(model.metabolites))
+    logger.info("Adding the legendre transform to the formation energies")
+    for i, m in enumerate(model.metabolites):
+        cond = model.compartment_conditions.loc[m.compartment]
+        # Convert to pint units
+        pH, I, T, p_mg = Q_(cond["pH"]), Q_(cond["I"], "M"), Q_(cond["T"], "K"), Q_(cond["p_mg"])
+        try:
+            adjustments += compound_list[i].transform(pH, I, T, p_mg).m_as("kJ/mol")
+        except MissingDissociationConstantsException:
+            logger.warning(f"Could not adjust formation energy of {compound_ids[i]} because it does not have "
+                           f"dissociation constants")
+    return adjustments
+
+
+def get_cov_eq(cc, compound_ids, compound_list):
     """
     Calculate the covaraince matrix of the formation energies of the model metabolites using equilibrator's own methods
     """
-    compound_ids = [m.id for m in model.metabolites]
-    compound_list = get_eq_compounds(model, cc)
     compound_vectors, missing_estimates = get_group_matrix(cc, compound_ids, compound_list)
     # Using matrix multiplication instead of concatenating the individual results. It's also easier because we have
     # hand-calculated compounds
@@ -147,23 +170,3 @@ def get_kegg_match(cc, bigg_id, id_df):
             logger.warning(f"Multiple conflicting matches for compound {bigg_id}. Using first match.")
     return valid_matches[0]
 
-# def build_cc_cov_mat(cc):
-#     params = cc.predictor.params
-#     num_train_met = params.G.shape[0]
-#     pp = cc.predictor.preprocess
-#     MSE_rc = params.MSE.at["rc", "MSE"]
-#     MSE_gc = params.MSE.at["gc", "MSE"]
-#     MSE_inf = pp.RMSE_inf ** 2
-#     c_rc = params.V_rc
-#     c_gc = params.V_gc
-#     c_inf = params.V_inf
-#     gamma = params.inv_GSWGS
-#     # pi_gc = params.train_G @ params.inv_GSWGS @ params.train_G.T + np.diag(np.full(num_train_met, MSE_gc ** 2))
-#     # c_gc = params.P_N_rc @ pi_gc @ params.P_N_rc.T
-#     c1 = MSE_rc * c_rc + MSE_gc * c_gc + MSE_inf * c_inf
-#     c2 = MSE_gc * params.P_N_rc @ params.train_G @ gamma + MSE_inf * params.train_G @ params.P_N_gc
-#     c3 = MSE_gc * gamma + MSE_inf * params.P_N_gc
-#     # This is the covariance matrix of compounds from the training set and groups
-#     full_c = np.vstack([np.hstack([c1, c2]),
-#                         np.hstack([c2.T, c3])])
-#     return full_c

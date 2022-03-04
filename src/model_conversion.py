@@ -33,6 +33,8 @@ def write_gollub2020_models(mat_files: [pathlib.Path], model_dir: pathlib.Path):
         model_struct = scipy.io.loadmat(mat_file)
         # Read in the model
         model = cobra.io.mat.from_mat_struct(model_struct["model"])
+        # Read in the conditions in each of the compartments
+        model.compartment_conditions = get_compartment_conditions(model, model_struct)
         # Add the membrane potential correction
         model.dgr_memb_correction = model_struct["model"]["drgCorr"][0, 0].flatten()
         # Get a list of excluded reactions
@@ -64,6 +66,21 @@ def write_gollub2020_models(mat_files: [pathlib.Path], model_dir: pathlib.Path):
     write_model_files(model_dir, stoichiometric_matrices[0], dgf_means[0], dgf_covs[0], condition_names,
                       met_conc_means, log_conc_sd)
 
+
+def get_compartment_conditions(model, model_struct):
+    compartment_conditions = pd.DataFrame(index=model.compartments, columns=["pH", "I", "T", "p_mg"], dtype=float)
+    met_phs = model_struct["model"]["metsPh"][0, 0].flatten()
+    met_p_mg = model_struct["model"]["metsPhi"][0, 0].flatten()
+    met_is = model_struct["model"]["metsI"][0, 0].flatten()
+    met_ts = model_struct["model"]["metsT"][0, 0].flatten()
+    for i, m in enumerate(model.metabolites):
+        met_conditions = pd.Series(index=["pH", "I", "T", "p_mg"], data=[met_phs[i], met_is[i], met_ts[i], met_p_mg[i]],
+                                   dtype=float)
+        assert compartment_conditions.loc[m.compartment].isnull().all() or \
+               np.allclose(compartment_conditions.loc[m.compartment], met_conditions), \
+            "Metabolites in the same compartment should have the same conditions"
+        compartment_conditions.loc[m.compartment] = met_conditions
+    return compartment_conditions
 
 def make_dgf_df(met_ids, dgf_means):
     # Write the enzyme concentration priors

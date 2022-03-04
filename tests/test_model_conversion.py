@@ -12,7 +12,7 @@ import pytest
 from src.dgf_estimation import calc_model_dgfs_with_prediction_error
 from src.fitting import generate_samples, stan_input_from_config
 from src.model_configuration import load_model_configuration
-from src.model_conversion import  write_gollub2020_models
+from src.model_conversion import write_gollub2020_models, get_compartment_conditions
 
 # Don't delete
 # from .model_setup import ecoli_model, model_small
@@ -93,6 +93,8 @@ def test_gollub_files_read_singles(temp_dir):
         # Load the true data
         model_struct = scipy.io.loadmat(f)
         model = cobra.io.mat.from_mat_struct(model_struct["model"])
+        # Add the conditions
+        model.compartment_conditions = get_compartment_conditions(model, model_struct)
         # Add the excluded reactions
         exclude_rxns = model_struct["model"]["isConstraintRxn"][0, 0].flatten() == 0
         model.Exclude_list = [model.reactions[i].id for i in np.where(exclude_rxns)[0]]
