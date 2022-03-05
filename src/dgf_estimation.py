@@ -57,7 +57,7 @@ def calculate_legendre_transform(compound_ids, compound_list, model):
         # Convert to pint units
         pH, I, T, p_mg = Q_(cond["pH"]), Q_(cond["I"], "M"), Q_(cond["T"], "K"), Q_(cond["p_mg"])
         try:
-            adjustments += compound_list[i].transform(pH, I, T, p_mg).m_as("kJ/mol")
+            adjustments[i] += compound_list[i].transform(pH, I, T, p_mg).m_as("kJ/mol")
         except MissingDissociationConstantsException:
             logger.warning(f"Could not adjust formation energy of {compound_ids[i]} because it does not have "
                            f"dissociation constants")
