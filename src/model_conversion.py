@@ -51,6 +51,8 @@ def write_gollub2020_models(mat_files: [pathlib.Path], model_dir: pathlib.Path):
         log_conc_means = model_struct["model"]["logConcMean"][0, 0].flatten()
         met_conc_means.append(log_conc_means)
         log_conc_cov = model_struct["model"]["logConcCov"][0, 0]
+        # Check that the log conc covariance matrix is diagonal
+        assert np.allclose(log_conc_cov, np.diag(np.diag(log_conc_cov))), "Log concentration covariance matrix should be diagonal"
         # Get the diagonal of the matrix
         log_conc_sd.append(np.sqrt(np.diag(log_conc_cov)))
     # Check that the dgf priors are the same for all conditions
