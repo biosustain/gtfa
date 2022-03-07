@@ -283,23 +283,28 @@ If little data is available, the space of valid fluxes can be relatively large, 
     0 = S\cdot \mathbf{v}
 \]
 
-% QUOTE FROM PAPER: Include A positive stoichiometric coefficient means that the metabolite is produced by reaction An and a negative entry indicates that the metabolite is consumed in that reaction.
-
 with $S \in \mathbb{Z}^{m\times r}$ representing the stoichiometric matrix, which contains the stoichiometric coefficients of the $m$ metabolites in the $r$ reactions in the metabolic network and $\mathbf{v} \in \mathbb{R}^r$ representing the fluxes of reactions $1,\dots,r$.
 If more data is available, this space can be further constrained by known thermodynamics, kinetics and regulatory interactions of metabolic enzymes.
-From this space of valid fluxes a single most-parsimonious solution can then be obtained, with parsiomny determined by maximising biomass production, nearness to measured data or other objective functions. % TODO: Find information about objective functions from the paper
+From this space of valid fluxes a single most-parsimonious solution can then be obtained, with parsiomny determined by maximising biomass production, nearness to measured data or other objective functions.
 This leads to a point estimate of the likely intracellular fluxes, where the objective function is a proxy for the feasiblity of the fluxes.
 However, a single point estimate may not faithfully represent the entire space of possible fluxes, for example if there are multiple modes of possible feasible fluxes.
 An alternative is to characterise the entire space of vaiable fluxes, usually with some form of sampling.
-
-% IDEA FROM PAPER - sampling is nice because the effect of any constraints can be easily examined - you split the samples into those that satisfy and don't satisfy the constraints
+This is beneficial for a number of reasons.
+Firstly, there are often many equivalent optimal solutions to a contraint-based flux optimisation problem \cite{many_optimal}.
+While there are simple approaches to enumerating all optimal solutions \cite{enumerate_optimal}, this does not include the likely many more near-optimal solutions.
+By describing the entire flux space, sampling can describe the many high-scoring "modes" present in the solution space.
+Further, sampling can be beneficial when retroactively applying further constraints to a model, where the effect of the constraints can be easily characterised by examining the valid and invalid samples.
 
 Sampling methods can be broadly split into Bayesian and non-Bayesian models.
-
 Methods 1,2 {TODO: Research these} were developed to sample uniformly from the space of steady-state fluxes.
+
+
 Saa {TODO: Citation} extended these methods to exclude loops from the flux space, which are known to violate the 2nd law of thermodynamics.
 Alternatively, one can simply include thermodynamic constraints which addresses the problem of loops while excluding further fluxes that violate thermodynamics.
-In this case, for all reacitons, the Gibbs' energy of reaction ($\dgr$) must be less than 0.
+% TODO: Talk much more here about the different flux sampling methods up to this point
+\subsubsection{Reaction thermodynamics and their estimation}
+Reaction thermodynamics is an important part of modern metabolic models and a key way to improve the accuracy of models without measurements.
+For a reaction to be valid, its Gibbs energy ($\dgr$) must be less than 0.
 In practice, the $\dgr$ of reaction $i$ is calculated as the sum of the Gibbs energy of reaction under standard conditions ($\sdgr$) and the scaled logarithm of products over reactants (\ref{eq:dgr})
 \begin{align}
     \dgr_i &= \sdgr_i + RT\ln \frac{P}{R} \label{eq:dgr}
@@ -319,32 +324,40 @@ For a set of reactions $1,\dots,r$ ($\bdgr \in \mathbb{R^r}$), this can also be 
 \end{align}
 where $\mathbf{c} \in \mathbb{R}_{+}^m$ is the concentration of all metabolites $1,\dots,m$ in $S$.
 Eq~\ref{eq:dgr_vec} shows the relation between the $\dgr$ and $\sdgr$ and Eq~\ref{eq:dgr_sdgf_vec} shows how the same can be calculated with the $\sdgf$.
-This formulation also nicely highlights the fact that $\dgr$, $\bsdgr$ and $\ln{\mathbf{c}}$ are linearly related. % TODO: This is the wrong statement to be making
-As these values are estimated, another benefit of Eq~\ref{eq:dgr_sdgf_vec} becomes clear, namely that all combinations of $\sdgf$ produce a system that is thermodynamically consistent.
-An arbitrarily chosen set of $\sdgr$ does not satisfy this property (see~\cite{noor_2013_equilibrator} for a more thorough description of this effect).
-
-% A more natural way to incorporate this probabilistic information would be to sample parameter sets accoring to their
-% likelihood. Any optimisation after this point can be by selecting the best one but balancing the likelihood of it
-% being present.
+This formulation also nicely highlights the fact that for a given $\bb$ and $\be$, $\bv$ and $\ln{\mathbf{c}}$ are linearly related.
+As these values are estimated, another benefit of Eq~\ref{eq:dgr_sdgf_vec} becomes clear, namely that all combinations of $\dgf$ produce a system that is thermodynamically consistent.
+An arbitrarily chosen set of $\dgr$ does not satisfy this property, hence the truncated $\dgr$ normal distribution of \cite{PTA} (see~\cite{noor_2013_equilibrator} for a more thorough description of this effect).
 
 Both $\mathbf{c}$ and $\sdgf$ can not be known for certain and need to be estimated, which creates a degree of uncertainty about their true values.
 To account for this uncertainty, some margin of error needs to be included to ensure that the true intracellular conditions can be represented.
-TMFA {TODO: Etc} define this margin of error for $\sdgr$ and metabolite concentrations by constraining them individually to fall within the 95\% confidence interval.
-% TODO: Whole paragraph on the multivariate approach? It's kinda relevant.
+TMFA \cite{HENRY_2007_tmfa} defines this margin of error for $\sdgr$ and metabolite concentrations by constraining them individually to fall within the 95\% confidence interval.
 ~\cite{multiTFA} and~\cite{PTA} improve upon this approach by constraining these values to a 95\% confidence interval of their joint probability, significantly tightening the bounds on possible values.
 However, both of these methods discard useful probabistic information about these parameters, effectively treating all values within the confidence interval as equally likely.
+This discards a lot of useful information, with the mean and the bounds of the confidence interval considered equally probable.
 ~\cite{PTA} {TODO: The exact method} addresses this problem by sampling from the space of valid thermodynamic orthants, i.e. flux directions, with the probabilty of each orthant determined by the probability of $\sdgr$ and metabolite concentrations within it.
 Unfortunately, this method still restricts the space of valid concentrations and $\sdgr$ to the 95\% confidence interval, although, to the authors' knowledge, this is not necessary.
 Additionally, the hit-and-run sampling method described in~\cite{PTA} requires multiple linear programming evaluations per sample, to ensure that samples satisfy steady state (Eq~\ref{eq:steady_state}), which can inhibit computational performance.
 
-% TODO: Talk about thermodynamics here. How hard and time-consuming it is to estimate. Problems with coverage of existing methods. What to do with unknown compounds?
+For the above methods the estimation of the multivariate distribtuion of $\sdgr$ is an essential component.
+In the case of both \cite{PTA} and \cite{multiTFA}, this distribution was determined using equilibrator, which is thoroughly described in \cite{equilibrator_3_beber_noor}.
+However, the process described in \cite{equilibrator_3_beber_noor} generates a $\sdgf$ distribution with a rank-deficient covariance matrix.
+Both \cite{PTA} and \cite{multiTFA} address this problem by using the Cholesky decomposition of this matrix, which effectively defines a lower-dimensional normal distribtuion which is sampled from an linearly transformed back into the original space.
+While addressing the immediate issue, there are some questionable outcomes from this approach, for example, compounds composed of the same groups (see \cite{JANKOWSKI_2008_group_contribution}) are forced to have the same $\sdgf$.
+It appears that this problem is rooted in the fact that the uncertainty in these predictions is described with the variance in the estimate, as opposed to the predicition error, which by definition gives a full rank covariance matrix for the estimated values.
+
+% TODO: We need a section briefly describing the methods for sdgf/sdgr estimation
+% TODO: Talk about thermodynamics here. How hard and time-consuming it is to estimate. Problems with coverage of existing methods. What to do with unknown compounds? our method can estimate them.
+% TODO: Merge this with the above into a "Thermo param estimation subsection"
 
 In this work, I present an alternative approach to defining and sampling from the space of fluxes that satisfy both steady-state and thermodynamic constraints.
 Generative Thermodynamic Flux Analysis (GTFA) is a method for sampling thermodynamically valid fluxes with respect to the probability that these fluxes match measured metabolite concentrations and standard formation energies.
 We represent fluxes as a function of their $\dgr$ multiplied by a scaling factor and separate the network into a set of "fixed" and "free" fluxes.
 This results in a parameter space where all combinations of parameters satisfy mass balance and thermodynamic constraints, as opposed to~\cite{PTA}, where large portions of the $\dgr$ parameter space are invalid and must be avoided.
+We additionally make a crude attempt to estimate the prediciton interval for $\sdgf$ estimated with Equilibrator, which allows for more realistic sampling of $\sdgf$.
 Furthermore, GTFA allows the inclusion of metabolomics, proteomics and fluxomics data.
 The final output of GTFA is then a set thermodynamically-valid fluxes, which respects the probability of each of these varied data sources.
+
+
 
 % TODO: Maybe some examples? Slower explanation of how there is probabilistic information attached to all of these measurements?
 
@@ -756,12 +769,27 @@ Alternatively, more complex graph neural networks could be applied to the same t
 Of course, the computational complexity of embedding the data in Bayesian models could quickly become and issue, especially in this case where many conditions, each with their own model parameters, would be required.
 Nevertheless, making use of these ever-growing -omics datasets could be the only option if more reaction equilibrium data does not become available.
 
+A further unanswered question is the relevance of the fixed and free parameters.
+The separation of the stoichiometric matrix $S$ into fixed and free variables is not unique, with many possible combinations.
+This begs the question: which combination of fixed and free variables gives the most accurate models.
+This could be influencd by a range of factors, the first of which is the split between exchange and internal reactions.
+Internal reactions each correspond to two reaction parameters $b$ and $e$, as well as being influenced by $\dgr$, which is itself affected by the $\sdgf$ and concentration $c$ of its substrates.
+On the other hand, exchange reactions are modelled with a single flux parameter, which is a model parameter and not a function of any other parameters.
+These are two very different quantities and it is not clear how the model would respond to different profiles of fixed and free varaibles from either group, with one key factor being the "narrowness" of the fixed variable.
+% TODO: Work on an example here (take one of the real samples) (look at how it changes over time)
+The prior on concentrations is $\ln(c) ~ N(-8.34, 1.99)$ (as in \cite{PTA}), while the prior on exchange reactions is $v_\Pi ~ N(0, 1)$. % TODO: This needs to be changed
+Thus, for a given fixed flux the fixed concentration must shift to a much more unlikely region than the exchange flux.
+This could make the parameter space more "bumpy", with small changes in parameters leading to changes in fixed fluxes that correspond to large changes in the likelihood of fixed parameters.
+If the number of fixed exchange fluxes were maximised, this effect may be minimised.
 
+Furthermore, fixed variables are not true parameters of the model, which makes applying reasonable priors difficult.
+The crude approach presented here is to nevertheless adjust the likelihood with fixed $\ln{c}$.
+This is important because some metabolites within the network have (and are expected to have in real data) no measured values, and would be completely unconstrained without priors.
+It is conceivable that metabolite concentrations with known accurate measurements could be prioritised as fixed variables, where concentration priors would anyway have little effect and could be dropped.
+This would leave a set of accurately measured fixed concentrations and a set of unmeasured metabolites with concentrations held in check by reasonable priors.
+Conceivably, this could do away with the improper-prior problem entirely, with the fixed concentrations consisting entirely of measured metabolites.
 
-
-
-% TODO: Talk about quantum chemistry paper
-
+It is clear that the assignment of fixed and free varaibles is a complex balancing of many factors and warrants further exploration.
 
 % Could gtfa work without fluxomics data - i.e. to predict fluxes?
 % Inclusion of fluxomics data directly - forward and reverse data
