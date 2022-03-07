@@ -84,7 +84,7 @@ def get_cov_eq(cc, compound_ids, compound_list):
 def get_group_matrix(cc, compound_ids, compound_list):
     params = cc.predictor.params
     man_group_df = pd.read_csv(root_dir / "data" / "raw" / "new_compound_groups.csv", index_col=0)
-    exception_list = pd.read_csv(root_dir / "data" / "raw" / "exceptions.csv", header=None, index_col=0)
+    exception_list = pd.read_excel(root_dir / "data" / "raw" / "exceptions.xlsx", header=None, index_col=0)
     # Numbers of
     Ng = params.dimensions.at["Ng", "number"]
     Nc = params.dimensions.at["Nc", "number"]
