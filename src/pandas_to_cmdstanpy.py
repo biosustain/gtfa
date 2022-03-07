@@ -23,12 +23,13 @@ DEFAULT_MET_CONC_SCALE = 1.9885
 # This still needs to be determined
 DEFAULT_ENZ_CONC_MEAN = -8.3371
 DEFAULT_ENZ_CONC_SCALE = 1.9885
-DEFAULT_EXCHANGE_MEAN = 0
-DEFAULT_EXCHANGE_SCALE = 1
+DEFAULT_EXCHANGE_MEAN = 0  # mol/gDW/h. (Was more than 0 in the data but that wouldn't make sense here)
+DEFAULT_EXCHANGE_SCALE = 0.00449  # From the (limited) exchange data in Gerosa et al. Room for improvement.
 DEFAULT_B_MEAN = 3
 DEFAULT_B_SCALE = 3
 FIXED_MIC_EPSILON = 1e-5  # The standard deviation of values that considered to have no variance
 FIXED_DGF_EPSILON = 1e-2  # The variance for dgf values that are considered to have no variance. High because of numerical issues.
+
 
 @dataclass
 class IndPrior1d:
@@ -51,12 +52,13 @@ class IndPrior2d:
         df["measurement_type"] = measurement_type
         return df
 
+
 def extract_prior_1d(
-    parameter: str,
-    priors: pd.DataFrame,
-    coords: List[str],
-    default_loc: float,
-    default_scale: float
+        parameter: str,
+        priors: pd.DataFrame,
+        coords: List[str],
+        default_loc: float,
+        default_scale: float
 ) -> IndPrior1d:
     param_priors = priors.groupby("parameter").get_group(parameter).set_index("target_id")
     loc, scale = (
@@ -67,12 +69,12 @@ def extract_prior_1d(
 
 
 def extract_prior_2d(
-    parameter: str,
-    priors: pd.DataFrame,
-    target_coords: List[str],
-    condition_coords: List[str],
-    default_loc: float,
-    default_scale: float
+        parameter: str,
+        priors: pd.DataFrame,
+        target_coords: List[str],
+        condition_coords: List[str],
+        default_loc: float,
+        default_scale: float
 ) -> IndPrior2d:
     if parameter not in priors["parameter"].unique():
         loc, scale = (
@@ -84,12 +86,12 @@ def extract_prior_2d(
         param_priors = priors.groupby("parameter").get_group(parameter)
         loc, scale = (
             param_priors
-            .set_index(["condition_id", "target_id"])
+                .set_index(["condition_id", "target_id"])
             [col]
-            .unstack()
-            .reindex(condition_coords)
-            .reindex(target_coords, axis=1)
-            .fillna(default)
+                .unstack()
+                .reindex(condition_coords)
+                .reindex(target_coords, axis=1)
+                .fillna(default)
             for col, default in [("loc", default_loc), ("scale", default_scale)]
         )
         return IndPrior2d(parameter, loc, scale)
@@ -117,8 +119,8 @@ def get_coords(S: pd.DataFrame, measurements: pd.DataFrame, priors: pd.DataFrame
     free_x_names = x_names[free_x_ind]
     fixed_x_names = x_names[~free_x_ind]
     # A list of indices for each free x
-    free_x = np.arange(1, len(free_x_ind)+1)[free_x_ind]
-    fixed_x = np.arange(1, len(free_x_ind)+1)[~free_x_ind]
+    free_x = np.arange(1, len(free_x_ind) + 1)[free_x_ind]
+    fixed_x = np.arange(1, len(free_x_ind) + 1)[~free_x_ind]
     # This is a vector with exchange reactions first followed by the metabolites
     exchange_free_ind = free_x_ind[:num_ex]
     exchange_free = exchanges[exchange_free_ind]
@@ -214,12 +216,12 @@ def check_input(measurements, priors):
 
 
 def get_stan_input(
-    measurements: pd.DataFrame,
-    S: pd.DataFrame,
-    priors: pd.DataFrame,
-    priors_cov: pd.DataFrame,
-    likelihood: bool,
-    order=None) -> Dict:
+        measurements: pd.DataFrame,
+        S: pd.DataFrame,
+        priors: pd.DataFrame,
+        priors_cov: pd.DataFrame,
+        likelihood: bool,
+        order=None) -> Dict:
     """Get an input to cmdstanpy.CmdStanModel.sample.
 
     :param measurements: a pandas DataFrame whose rows represent measurements
@@ -242,10 +244,14 @@ def get_stan_input(
     # Transform into measurements for the model
     free_exchange = get_name_ordered_overlap(coords, "reaction_ind", ["exchange", "free_x_names"])
     free_met_conc = get_name_ordered_overlap(coords, "metabolite_ind", ["metabolite", "free_x_names"])
-    prior_b = extract_prior_2d("b", priors, coords["internal_names"], coords["condition"], DEFAULT_B_MEAN, DEFAULT_B_SCALE)
-    prior_enzyme = extract_prior_2d("internal_names", priors, coords["internal_names"], coords["condition"], DEFAULT_ENZ_CONC_MEAN, DEFAULT_ENZ_CONC_SCALE)
-    prior_met_conc_free = extract_prior_2d("metabolite", priors, free_met_conc, coords["condition"], DEFAULT_MET_CONC_MEAN, DEFAULT_MET_CONC_SCALE)
-    prior_exchange_free = extract_prior_2d("exchange", priors, free_exchange, coords["condition"], DEFAULT_EXCHANGE_MEAN, DEFAULT_EXCHANGE_SCALE)
+    prior_b = extract_prior_2d("b", priors, coords["internal_names"], coords["condition"], DEFAULT_B_MEAN,
+                               DEFAULT_B_SCALE)
+    prior_enzyme = extract_prior_2d("internal_names", priors, coords["internal_names"], coords["condition"],
+                                    DEFAULT_ENZ_CONC_MEAN, DEFAULT_ENZ_CONC_SCALE)
+    prior_met_conc_free = extract_prior_2d("metabolite", priors, free_met_conc, coords["condition"],
+                                           DEFAULT_MET_CONC_MEAN, DEFAULT_MET_CONC_SCALE)
+    prior_exchange_free = extract_prior_2d("exchange", priors, free_exchange, coords["condition"],
+                                           DEFAULT_EXCHANGE_MEAN, DEFAULT_EXCHANGE_SCALE)
     # Add the fixed priors to the measurements
     fixed_exchange_prior_df, fixed_met_prior_df = fixed_prior_to_measurements(coords, priors)
     measurements_by_type["mic"] = measurements_by_type["mic"].append(fixed_met_prior_df)
