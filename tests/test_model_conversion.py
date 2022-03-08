@@ -24,6 +24,7 @@ formatter = logging.Formatter('%(asctime)s | %(name)s | %(levelname)s | %(messag
 base_dir = Path(__file__).parent.parent
 
 @pytest.mark.usefixtures("ecoli_model")
+@pytest.mark.xfail(raises=NotImplementedError, reason="Duplicate compounds aren't supported yet")
 def test_model_writing(ecoli_model):
     temp_dir = Path("temp_dir")
     # Check the stoichiometry of a few reactions at random
@@ -81,6 +82,7 @@ def test_small_model_prior(model_small):
 
 
 @pytest.mark.usefixtures("temp_dir")
+@pytest.mark.xfail(raises=NotImplementedError, reason="Duplicate compounds aren't supported yet")
 def test_gollub_files_read_singles(temp_dir):
     """ Test that all gollub model files can be read and converted individually"""
     gollub_files = list((temp_dir.parent.parent / "data" / "raw" / "from_gollub_2020").glob("**/*.mat"))
@@ -123,6 +125,7 @@ def test_gollub_files_read_singles(temp_dir):
 
 
 @pytest.mark.usefixtures("temp_dir")
+@pytest.mark.xfail(raises=NotImplementedError, reason="Duplicate compounds aren't supported yet")
 def test_gollub_files_fit_singles(temp_dir):
     """ Test that all gollub model files can be read and fitted without issues"""
     gollub_files = list((base_dir / "data" / "raw" / "from_gollub_2020").glob("**/*.mat"))

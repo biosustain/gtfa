@@ -22,6 +22,7 @@ def test_small_model(model_small_rankdef_thermo):
     # assert np.allclose(np.sqrt(np.diag(dgf_cov)), expected_sd, atol=0.1)
 
 
+@pytest.mark.xfail(raises=NotImplementedError, reason="Duplicate compounds aren't supported yet")
 def test_small_model_different_conditions():
     """
     Test that the metabolites of the small model are correctly converted for different conditions (compared to values manually from the website)

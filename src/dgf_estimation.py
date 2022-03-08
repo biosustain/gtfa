@@ -24,6 +24,11 @@ def calc_model_dgfs_with_prediction_error(model, cc=None):
         cc = ComponentContribution()
     compound_ids = [m.id for m in model.metabolites]
     compound_list = get_eq_compounds(model, cc)
+    # Check for duplicate compounds
+    if len(compound_list) != len(set(compound_list)):
+        # This is not currently implemented because absolute covariance between compounds needs to be accounted for
+        raise NotImplementedError("The model contains duplicate compounds (perhaps internal and external metabolites). "
+                                  "This is not currently supported")
     # A dataframe with the manually calculated group decompositions
     dgf_means, dgf_cov, met_groups, missing_estimates = get_cov_eq(cc, compound_ids, compound_list)
     # Add the legendre transform to the formation energies for the different compartments
