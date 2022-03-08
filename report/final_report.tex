@@ -302,14 +302,20 @@ Methods 1,2 {TODO: Research these} were developed to sample uniformly from the s
 Saa {TODO: Citation} extended these methods to exclude loops from the flux space, which are known to violate the 2nd law of thermodynamics.
 Alternatively, one can simply include thermodynamic constraints which addresses the problem of loops while excluding further fluxes that violate thermodynamics.
 % TODO: Talk much more here about the different flux sampling methods up to this point
+
+% Talk here about bayesian sampling method that allows for deviations from steady state to stop parameter fixing
+% If they make these too tight they will have a problem - as they converge they include free variables
+
 \subsubsection{Reaction thermodynamics and their estimation}
-Reaction thermodynamics is an important part of modern metabolic models and a key way to improve the accuracy of models without measurements.
+Reaction thermodynamics is an important part of modern metabolic models and a key way to improve the accuracy of models without experimental data.
+Firstly, we will begin with some fundamental thermodynamic properties of reactions and their substrates.
 For a reaction to be valid, its Gibbs energy ($\dgr$) must be less than 0.
 In practice, the $\dgr$ of reaction $i$ is calculated as the sum of the Gibbs energy of reaction under standard conditions ($\sdgr$) and the scaled logarithm of products over reactants (\ref{eq:dgr})
 \begin{align}
     \dgr_i &= \sdgr_i + RT\ln \frac{P}{R} \label{eq:dgr}
 \end{align}
 where $R$ is the gas constant, $T$ is the temperature and $P$ and $R$ are the concentrations of the reaction's products and reactants respectively.
+% TODO: Replace the above with Q
 Because the Gibbs energy of a reaction is a state function, the $\dgr$ and $\sdgr$ of a reaction are equivalent to the Gibbs energy of formation ($\dgf$) and standard Gibbs energy of formation ($\sdgf$) respectively of all reaction substrates, when scaled by their stoichiometries.
 That is,
 \[
@@ -324,12 +330,24 @@ For a set of reactions $1,\dots,r$ ($\bdgr \in \mathbb{R^r}$), this can also be 
 \end{align}
 where $\mathbf{c} \in \mathbb{R}_{+}^m$ is the concentration of all metabolites $1,\dots,m$ in $S$.
 Eq~\ref{eq:dgr_vec} shows the relation between the $\dgr$ and $\sdgr$ and Eq~\ref{eq:dgr_sdgf_vec} shows how the same can be calculated with the $\sdgf$.
-This formulation also nicely highlights the fact that for a given $\bb$ and $\be$, $\bv$ and $\ln{\mathbf{c}}$ are linearly related.
 As these values are estimated, another benefit of Eq~\ref{eq:dgr_sdgf_vec} becomes clear, namely that all combinations of $\dgf$ produce a system that is thermodynamically consistent.
-An arbitrarily chosen set of $\dgr$ does not satisfy this property, hence the truncated $\dgr$ normal distribution of \cite{PTA} (see~\cite{noor_2013_equilibrator} for a more thorough description of this effect).
+An arbitrarily chosen set of $\dgr$ does not satisfy this property, hence the truncated $\dgr$ normal distribution of \cite{PTA} (see~\cite{noor_2013_equilibrator} for a more thorough description of this property).
 
-Both $\mathbf{c}$ and $\sdgf$ can not be known for certain and need to be estimated, which creates a degree of uncertainty about their true values.
-To account for this uncertainty, some margin of error needs to be included to ensure that the true intracellular conditions can be represented.
+Both $\mathbf{c}$ and $\sdgf$ can not be known for certain and need to be estimated.
+There have been a number of approaches to estimating the $\sdgf$ and $\sdgr$ of unknown compounds and reactions.
+In what \citet{noor_2013_equilibrator} dubbed the Reactant Contribution (rc) method \cite{ALBERTY_1998_thermo_data}, known $\sdgf$ values and linear combinations of known $\sdgr$ values can be combined to determine the $\sdgf$ of compounds whose formation energies have never been directly measured.
+This boils down to a linear regression on reaction Gibbs energies as a function of their substrates.
+The Group Contribution (gc) method \cite{JANKOWSKI_2008_group_contribution, Mavrovouniotis_1990_group_contribtuion} increases coverage by representing each compound as a vector of its consittuent chemical moieties, which allows the estimation of $\sdgf$ of compounds not in the training data.
+However, in representing each compound as a vector of independent moieties, this approach introduces additional errror and is thus less accurate.
+The component contribution method (also known as Equilibrator) \cite{noor_2013_equilibrator} uses linear algebra to combine the two methods.
+This gives thermodynamically consistent estimates that use the gc method when the more accurate rc estimates are not available.
+Despite the increased coverage provided by gc, there are still compounds and reactions whose thermodynamic properties cannot be estimated.
+For example, some groups are not present in the training data for the linear model and thus the value of any reactions involving this group are unknown.
+Additionally, the process of breaking a compound down into groups sometimes fails, particularly in the case of very simple molecules like ions, or very complex molecules, e.g. those containing complex ring strucutres.
+These reactions are typically estimated with a mean of 0 and a large uncertainty.
+% TODO: Make sure the above alberty reference is correct
+
+When integrating these estimates into models, this uncertainty needs to be accounted for.
 TMFA \cite{HENRY_2007_tmfa} defines this margin of error for $\sdgr$ and metabolite concentrations by constraining them individually to fall within the 95\% confidence interval.
 ~\cite{multiTFA} and~\cite{PTA} improve upon this approach by constraining these values to a 95\% confidence interval of their joint probability, significantly tightening the bounds on possible values.
 However, both of these methods discard useful probabistic information about these parameters, effectively treating all values within the confidence interval as equally likely.
@@ -344,15 +362,15 @@ However, the process described in \cite{equilibrator_3_beber_noor} generates a $
 Both \cite{PTA} and \cite{multiTFA} address this problem by using the Cholesky decomposition of this matrix, which effectively defines a lower-dimensional normal distribtuion which is sampled from an linearly transformed back into the original space.
 While addressing the immediate issue, there are some questionable outcomes from this approach, for example, compounds composed of the same groups (see \cite{JANKOWSKI_2008_group_contribution}) are forced to have the same $\sdgf$.
 It appears that this problem is rooted in the fact that the uncertainty in these predictions is described with the variance in the estimate, as opposed to the predicition error, which by definition gives a full rank covariance matrix for the estimated values.
+As the estimation of thermodynamic properties of the network is an essential component of this thesis, these methods are explained in more detail in Section \ref{sec:sdgf_estimation}.
 
-% TODO: We need a section briefly describing the methods for sdgf/sdgr estimation
-% TODO: Talk about thermodynamics here. How hard and time-consuming it is to estimate. Problems with coverage of existing methods. What to do with unknown compounds? our method can estimate them.
-% TODO: Merge this with the above into a "Thermo param estimation subsection"
-
-In this work, I present an alternative approach to defining and sampling from the space of fluxes that satisfy both steady-state and thermodynamic constraints.
+In this work, we present an alternative approach to defining and sampling from the space of fluxes that satisfy both steady-state and thermodynamic constraints.
 Generative Thermodynamic Flux Analysis (GTFA) is a method for sampling thermodynamically valid fluxes with respect to the probability that these fluxes match measured metabolite concentrations and standard formation energies.
 We represent fluxes as a function of their $\dgr$ multiplied by a scaling factor and separate the network into a set of "fixed" and "free" fluxes.
 This results in a parameter space where all combinations of parameters satisfy mass balance and thermodynamic constraints, as opposed to~\cite{PTA}, where large portions of the $\dgr$ parameter space are invalid and must be avoided.
+Because the speed of sampling is high, GTFA can be applied to multiple conditions simultaneously.
+The simultanous sampling of multiple conditions allows the estimation of the thermodynamic properties of compounds and reactions, which are not able to be esimated using other methods.
+It additionally allows the correction of possible biases in existing estimates, perhaps accounting for factors such as substrate channeling or other intracellular conditions.
 We additionally make a crude attempt to estimate the prediciton interval for $\sdgf$ estimated with Equilibrator, which allows for more realistic sampling of $\sdgf$.
 Furthermore, GTFA allows the inclusion of metabolomics, proteomics and fluxomics data.
 The final output of GTFA is then a set thermodynamically-valid fluxes, which respects the probability of each of these varied data sources.
@@ -372,8 +390,6 @@ Structurally, fluxes and thermodynamic data are forced to satisfy both steady st
 This section will describe the statistical model used in GTFA.
 As the model is quite complex, we will progressively increase complexity, starting with a simple model and progressively adding complexity until we reach the final model that was applied in the analyses.
 
-% TODO: Give the models names??
-% TODO: Define be as b x e
 A naive first description of the model defines the fluxes as a function of the $\dgr$ scaled by enzyme concentrations and the scaling factor $b$, for a single condition.
 Firstly, the likelihood function describes the densities of measured data for a given parameter configuration.
 The fluxes $\bv$ are a function of the free parameters of the system $\bsdgf$, $\be$, $\bb$ and $\bc$:
@@ -382,8 +398,11 @@ The fluxes $\bv$ are a function of the free parameters of the system $\bsdgf$, $
         &= S^T (\bsdgr + RT\ln{\bc}) \odot \be \odot \bb \\
 \end{align}
 .
+From here on in, we use $\bbe=\bb \odot \be$ for notational simplicity.
+This formulation nicely highlights the fact that, for a given $\bb$ and $\be$, $\bv$ and $\ln{\mathbf{c}}$ are linearly related.
 Measurement densities are described as follows:
 % TODO: The notation here is a little lax. How can we do it nicely showing that this is conditional on the params?
+% TODO: Check bayesian paper for their notation style as well
 \begin{align*}
     \mathbf{y_{e}} ~ LN(\ln{\be}, \Sigma_{me}) \\
     \mathbf{y_{c}} ~ LN(\ln{\bc}, \Sigma_{mc}) \\
@@ -397,16 +416,14 @@ The priors are defined as follows:
     \be ~ LN(\mathbf{\mu_e}, \Sigma_e) \\
     \bb ~ LN(\mathbf{\mu_b}, \Sigma_b) \\
     \bc ~ LN(\mathbf{\mu_c}, \Sigma_c) \\
-    \bv ~ N(\mathbf{\mu_v}, \Sigma_v) \\
     \bsdgf ~ N(\mathbf{\mu_{f}}, \Sigma_{f}) \\
 \end{align*}
 where $\mathbf{\mu_e}$, $\mathbf{\mu_c}$, $\mathbf{\mu_v}$, $\mathbf{\mu_b}$ and $\mathbf{\mu_f}$ are the means of the prior distributions and $\Sigma_e$,$\Sigma_b$, $\Sigma_c$,$\Sigma_v$, $\Sigma_f$ are the covariance matrices of the priors distributions.
 The covariance matrices $\Sigma_e$, $\Sigma_b$, $\Sigma_c$ and $\Sigma_v$ assume independence between the individual entries with traces of $\mathbf{\sigma_e}$, $\mathbf{\sigma_b}$, $\mathbf{\sigma_c}$ and $\mathbf{\sigma_v}$.
 For priors on the enzyme and metabolite concentrations we apply the same method as~\cite{PTA} and fit a normal distribution to all conditions in the dataset. %TODO: Actually do this and put the values here
-% TODO: Do we have priors on v? If so, how? We could also use the fluxomics data
 Defining a prior for $b$ is more difficult, as there is little prior information on such a quantity and it is expected to vary greatly across reactions.
-% TODO: Mention Lars' thing here?
-We somewhat arbitrarily used a lognormal distribution with a mean of $x$ and a sd of $y$. %TODO, what are the actual values?
+
+We somewhat arbitrarily used a lognormal distribution with a mean of 3 and a sd of 3.
 % TOdo: Refer to actual analysis here.
 Defining a prior for $\bsdgf$ was more complex process as it relied on estimates provided by equilibrator~\cite{noor_2013_equilibrator}.
 This is described more thoroughly in Section~\ref{sec:sdgf_estimation}.
@@ -433,11 +450,9 @@ The priors are defined as follows:
     \bsdgf ~ N(\mathbf{\mu_{f}}, \Sigma_{f}) \\
 \end{align*}
 
-% TODO: Other kinds of excluded reactions might need to be mentioned here
-% TODO: Have numbered models?
 \subsubsection{Exchange reactions}
 The first adaption to the model is the inclusion of exchange reactions.
-Material needs to enter and exit the model, which is represented by one-sided "exchange" reactions that bring individual metabolites through the system boundaries.
+Material needs to pass through the model boundaries, which is represented by one-sided "exchange" reactions that bring individual metabolites through the system boundaries.
 These reactions need to satisfy mass balance, but not thermodynamic constraints.
 In practice, this requires the flux vector $\bv$ and the stoichiometric matrix $S$ each be separated into two parts.
 We represent the first $1,\dots,p$ columns of $S$ and elements of $\bv$ as $S_\Pi$ and $\bv_\Pi$ as those corresponding to the $p$ exchange reactions in the network.
@@ -453,14 +468,14 @@ with a normal prior on the exchange fluxes, which are now free parameters
 \begin{align*}
     \bv_{\Pi} ~ N(\mathbf{\mu_{v_{\Pi}}}, \Sigma_{v_{\Pi}}) \\
 \end{align*}
+As a first approximation, we set $\mu_v{\Pi}=0$ and $\Sigma_{v_{\Pi}}=4.5e^{-3} mol\cdot h^{-1} \cdot gCDW^{-1}$, the result of a normal distribution fit on the exchange reactions of \cite{GEROSA_2015_dataset_pseudo_transition}.
 This formulation highlights the fact that, with exchange fluxes allowed to vary freely and internal fluxes dependent upon other parameters, there is no guarantee that the steady-state condition holds.
 In fact, it is impossible for the constraints to hold, which will be addressed in the next section.
 
 \subsubsection{Parameter fixing}
-% TODO: Include here what to do with dependent rows of the s matrix as well. What did I do again?
-Equation~\ref{eq:steady_state} effectively removes $m$ degrees of freedom from the system by requiring mass balance of metabolites.
-To ensure that all parameter configurations are valid, these degrees of freedom need to be removed from the system.
-Often a non-linear solver will be applied to determine a set of fixed parameters that satisfy the given constraints from the parameters that are free to vary. %TODO: Reference for this? Can I reference MAUD?
+Equation~\ref{eq:steady_state} effectively removes $\text{rank(}S\text{)}$ degrees of freedom from the system by requiring mass balance of metabolites.
+To ensure that all parameter configurations are valid, these degrees of freedom need to be removed.
+Often a non-linear solver will be applied to determine a set of fixed parameters that satisfy the given constraints from the parameters that are free to vary \cite{stan_docs_solver}.
 Luckily, because of the aforementioned linear dependence between $v$, $\bsdgf$ and $\ln{\bc}$, the fixed parameters can easily be determined as a linear combination of free parameters.
 \\
 If we rearrange these linear relations into a single matrix, the process of solving for fixed parameters is greatly simplified.
@@ -472,7 +487,7 @@ For this purpose we require a number of definitions:
           \end{bmatrix} \\
     x = \begin{bmatrix}
             \bv_{\Pi} \\
-            \bsdgf + RT\ln{\bc}\\ % TODO: Should we just notate these as formation energies?
+            \bsdgf + RT\ln{\bc}\\
         \end{bmatrix} \\
     S_m = S \cdot S_v\\
 \end{align}
@@ -481,9 +496,8 @@ with $x \in \mathbb{R}^{m+p}$ being a vector of exchange reactions and formation
  transforms $x$ to the change in metabolite concentrations $d\bc/dt$, which is 0 under steady state.
 
 %TODO: Think about the exact sizes of everything here. Will have something to do with the rank of the matrix
-With these definitions in place, $x$ can be split into two parts $x^{fi} \in \mathbb{R}^{ra(S_m)}$ and $x^{fr}\in \mathbb{R}^{m+p-ra(S_m)}$ that correspond to the basic and free variables of $S_m$.
-% TODO: We need a reference for the above
-% TODO: Should we be more precise here? It's probably not necessary
+% TODO: Relation between rank of S_m and S?
+With these definitions in place, $x$ can be split into two parts $x^{fi} \in \mathbb{R}^{\text{rank}(S_m)}$ and $x^{fr}\in \mathbb{R}^{m+p-\text{rank}(S_m)}$ that correspond to the basic and free variables of $S_m$.
 The values of the free varaibles can thus be determined given a set of proposed free variables
 \begin{align}
     0 &= S_m\cdot x\\
@@ -494,6 +508,10 @@ where $S_m^{fi}$ and $S_m^{fr}$ are matrices composed of the pivot and non-pivot
 In practice, $x^{fi}$ is solved for instead of using the $S_m^{fi}^{-1}$ due to numerical issues.
 This separation into fixed and free fluxes can be extended to the components of $x$, with $\bc^{fi}$, $\bc^{fr}$, $\bv_\Pi^{fi}$ and $\bv_\Pi^{fr}$ corresponding to the fixed and free metabolite concentrations and exchange fluxes respectively.
 In concrete terms, this means that the model proposes a set of free fluxes and this allows the determination of the rest of the fluxes such that they satisfy steady-state constraints.
+Note that it is often the case that the rows of $S$ are not full rank, i.e. $\text{rank(}S\text{)} < m$.
+In this case, a similar process of splitting the matrix into fixed and free rows is possible, which yields a square and thus invertible $S_m^{fi}^{-1}$.
+For notational simplicity we exclude this factor, which has little effect on the conceptual understanding of the process.
+
 This gives a model with the fixed variables of $x$ determined by free varaiables:
 \begin{align}
     v &= S_m\cdot x\\
@@ -791,6 +809,8 @@ Conceivably, this could do away with the improper-prior problem entirely, with t
 
 It is clear that the assignment of fixed and free varaibles is a complex balancing of many factors and warrants further exploration.
 
+
+% TODO: Mention Lars' thing here? - K apparrent could be informative for us.
 % Could gtfa work without fluxomics data - i.e. to predict fluxes?
 % Inclusion of fluxomics data directly - forward and reverse data
 % Inclusion of predictive model into bayesian model? Can you develop a machine learning method of learning latent paramters?
