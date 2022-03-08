@@ -1,140 +1,17 @@
 import logging
-import shutil
-import sys
 from pathlib import Path
 
 import numpy as np
-from equilibrator_api import ComponentContribution
 import pandas as pd
-import pytest
 from cobra import Model, Metabolite, Reaction
-from cobra.io import load_model
 
-from src import model_conversion, util
-from src.dgf_estimation import calc_model_dgfs_with_prediction_error
+from src.dgf_estimation import cc
 from src.pandas_to_cmdstanpy import DEFAULT_MET_CONC_MEAN, DEFAULT_MET_CONC_SCALE
-from src.util import get_smat_df
 
 logger = logging.getLogger(__name__)
 formatter = logging.Formatter('%(asctime)s | %(name)s | %(levelname)s | %(message)s')
 # This makes the tests run faster
 base_dir = Path(__file__).parent.parent
-cc = ComponentContribution()
-
-
-
-@pytest.fixture
-def temp_dir():
-    temp_dir = Path(base_dir / "tests" / "temp_dir").absolute()
-    if temp_dir.exists():
-        shutil.rmtree(temp_dir)
-    temp_dir.mkdir()
-    yield temp_dir
-    shutil.rmtree(temp_dir)
-
-
-@pytest.fixture
-def ecoli_model():
-    # Make sure that logging print statements still work
-    stream_handler = logging.StreamHandler(sys.stdout)
-    stream_handler.setFormatter(formatter)
-    logger.addHandler(stream_handler)
-    # Write the files
-    model = load_model("e_coli_core")
-    log_concs, log_conc_scales = gen_random_log_concs(model)
-    dgfs, dgf_covs = calc_model_dgfs_with_prediction_error(model, cc)
-    S = get_smat_df(model)
-    temp_dir = Path("temp_dir")
-    if temp_dir.exists():
-        shutil.rmtree(temp_dir)
-    result_dir = temp_dir / "results"
-    result_dir.mkdir(parents=True)
-    # Get the dgfs
-    model_conversion.write_model_files(temp_dir, S, dgfs, dgf_covs, ["1"], [log_concs], [log_conc_scales])
-    yield model
-    # Clean up
-    shutil.rmtree(temp_dir)
-
-
-@pytest.fixture
-def model_small():
-    # Make sure that logging print statements still work
-    stream_handler = logging.StreamHandler(sys.stdout)
-    stream_handler.setFormatter(formatter)
-    logger.addHandler(stream_handler)
-    # Write the files
-    model = build_small_test_model()
-    log_concs, log_conc_scales = gen_random_log_concs(model)
-    dgfs, dgf_covs = calc_model_dgfs_with_prediction_error(model, cc)
-    S = get_smat_df(model)
-    temp_dir = Path("temp_dir")
-    result_dir = temp_dir / "results"
-    if temp_dir.exists():
-        shutil.rmtree(temp_dir)
-    temp_dir.mkdir()
-    result_dir.mkdir()
-    model_conversion.write_model_files(temp_dir, S, dgfs, dgf_covs, ["1"], [log_concs], [log_conc_scales])
-    # We need at least one measurment
-    header = pd.DataFrame(columns=["measurement_type", "target_id", "condition_id", "measurement", "error_scale"],
-                          data=[["mic", "f6p_c", "condition_1", 0.001, 0.1]])
-    header.to_csv(temp_dir / "measurements.csv", index=False)
-    yield model
-    # Clean up
-    shutil.rmtree(temp_dir)
-
-
-@pytest.fixture
-def model_small_rankdef():
-    # Make sure that logging print statements still work
-    stream_handler = logging.StreamHandler(sys.stdout)
-    stream_handler.setFormatter(formatter)
-    logger.addHandler(stream_handler)
-    # Write the files
-    model = build_small_test_model_rankdef_stoich()
-    log_concs, log_conc_scales = gen_random_log_concs(model)
-    dgfs, dgf_covs = model_conversion.calc_model_dgfs_with_prediction_error(model, cc)
-    S = get_smat_df(model)
-    temp_dir = Path("temp_dir")
-    result_dir = temp_dir / "results"
-    if temp_dir.exists():
-        shutil.rmtree(temp_dir)
-    temp_dir.mkdir()
-    result_dir.mkdir()
-    model_conversion.write_model_files(temp_dir, S, dgfs, dgf_covs, ["1"], [log_concs], [log_conc_scales])
-    # We need at least one measurment
-    header = pd.DataFrame(columns=["measurement_type", "target_id", "condition_id", "measurement", "error_scale"],
-                          data=[["mic", "f6p_c", "condition_1", 0.001, 0.1]])
-    header.to_csv(temp_dir / "measurements.csv", index=False)
-    yield model
-    # Clean up
-    shutil.rmtree(temp_dir)
-
-
-@pytest.fixture
-def model_small_rankdef_thermo():
-    # Make sure that logging print statements still work
-    stream_handler = logging.StreamHandler(sys.stdout)
-    stream_handler.setFormatter(formatter)
-    logger.addHandler(stream_handler)
-    # Write the files
-    model = build_small_test_model_rankdef_thermo()
-    log_concs, log_conc_scales = gen_random_log_concs(model)
-    dgfs, dgf_covs = model_conversion.calc_model_dgfs_with_prediction_error(model, cc)
-    S = get_smat_df(model)
-    temp_dir = Path("temp_dir")
-    result_dir = temp_dir / "results"
-    if temp_dir.exists():
-        shutil.rmtree(temp_dir)
-    temp_dir.mkdir()
-    result_dir.mkdir()
-    model_conversion.write_model_files(temp_dir, S, dgfs, dgf_covs, ["1"], [log_concs], [log_conc_scales])
-    # We need at least one measurment
-    header = pd.DataFrame(columns=["measurement_type", "target_id", "condition_id", "measurement", "error_scale"],
-                          data=[["mic", "f6p_c", "condition_1", 0.001, 0.1]])
-    header.to_csv(temp_dir / "measurements.csv", index=False)
-    yield model
-    # Clean up
-    shutil.rmtree(temp_dir)
 
 
 def build_small_test_model_rankdef_stoich():
@@ -173,7 +50,7 @@ def build_small_test_model_rankdef_stoich():
     model.metabolites[3].annotation = {"kegg.compound": "C00103"}
     model.metabolites[4].annotation = {"kegg.compound": "C00002"}
     model.metabolites[5].annotation = {"kegg.compound": "C00008"}
-    model.compartment_conditions = make_default_compartment_conditions(model, cc)
+    model.compartment_conditions = make_default_compartment_conditions(model)
     return model
 
 
@@ -211,7 +88,7 @@ def build_small_test_model():
     model.metabolites[1].annotation = {"kegg.compound": "C00668"}
     model.metabolites[2].annotation = {"kegg.compound": "C05001"}
     model.metabolites[3].annotation = {"kegg.compound": "C00103"}
-    model.compartment_conditions = make_default_compartment_conditions(model, cc)
+    model.compartment_conditions = make_default_compartment_conditions(model)
     return model
 
 
@@ -255,7 +132,7 @@ def build_small_test_model_rankdef_thermo():
     model.metabolites[4].annotation = {"kegg.compound": "C00002"}
     model.metabolites[5].annotation = {"kegg.compound": "C00008"}
     model.metabolites[6].annotation = {"kegg.compound": "C00009"}
-    model.compartment_conditions = make_default_compartment_conditions(model, cc)
+    model.compartment_conditions = make_default_compartment_conditions(model)
     return model
 
 
@@ -320,7 +197,6 @@ def build_small_test_model_exchanges():
     model.metabolites[5].annotation = {"kegg.compound": "C00008"}
     model.metabolites[6].annotation = {"kegg.compound": "C00009"}
 
-
     model.metabolites[7].annotation = {"kegg.compound": "C00122"}
     model.metabolites[8].annotation = {"kegg.compound": "C01384"}
     model.metabolites[9].annotation = {"kegg.compound": "C00109"}
@@ -334,10 +210,11 @@ def build_small_test_model_exchanges():
     return model
 
 
-def make_default_compartment_conditions(model, cc: ComponentContribution):
+def make_default_compartment_conditions(model):
     compartment_conditions = pd.DataFrame(index=model.compartments, columns=["pH", "I", "T", "p_mg"])
     for compartment in model.compartments.keys():
-        compartment_conditions.loc[compartment] = [cc.p_h.m_as(""), cc.ionic_strength.m_as("M"), cc.temperature.m_as("K"), cc.p_mg.m_as("")]
+        compartment_conditions.loc[compartment] = [cc.p_h.m_as(""), cc.ionic_strength.m_as("M"),
+                                                   cc.temperature.m_as("K"), cc.p_mg.m_as("")]
     return compartment_conditions
 
 

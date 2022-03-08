@@ -3,13 +3,9 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-import pytest
 import scipy
 
 import src.util as util
-from src.fitting import stan_input_from_dir
-# Don't delete
-from .model_setup import ecoli_model, model_small
 from src.pandas_to_cmdstanpy import get_free_x_and_rows, get_exchange_rxns
 
 
@@ -19,8 +15,9 @@ def test_get_free_fluxes_solution_many():
     total_cols = 100
 
     for nrows in range(3, total_rows):
-        for ncols in range(nrows+1, total_cols):
-            random_matrix = (scipy.sparse.rand(nrows, ncols, density=0.3, random_state=nrows+ncols).toarray() - 0.5) * 3
+        for ncols in range(nrows + 1, total_cols):
+            random_matrix = (scipy.sparse.rand(nrows, ncols, density=0.3,
+                                               random_state=nrows + ncols).toarray() - 0.5) * 3
             random_matrix = np.around(random_matrix)
             get_free_fluxes_solution(random_matrix)
 
@@ -56,7 +53,6 @@ def get_free_fluxes_solution(random_matrix):
 #     assert stan_input["N_exchange"] == 3, "Expect extra transport reaction"
 
 
-@pytest.mark.usefixtures("model_small")
 def test_free_x_calculation_true(model_small):
     temp_dir = Path("temp_dir")
     orders = ['EX_f1p_c', 'f6p_c']
@@ -65,7 +61,6 @@ def test_free_x_calculation_true(model_small):
     assert free_x[orders].sum() == 2, "Exchange and f6p_c are valid free x variables"
 
 
-@pytest.mark.usefixtures("model_small")
 def test_free_x_calculation_false(model_small):
     temp_dir = Path("temp_dir")
     orders = ['SK_g6p_c', 'EX_f1p_c']
@@ -74,11 +69,10 @@ def test_free_x_calculation_false(model_small):
     assert free_x[orders].sum() == 1, "Only one exchange reaction can be free"
 
 
-@pytest.mark.usefixtures("model_small")
-def test_free_x_shuffle_S():
-    temp_dir = Path("temp_dir")
+def test_free_x_shuffle_S(model_small):
+    model_dir = Path("temp_dir")
     orders = ['SK_g6p_c', 'EX_f1p_c']
-    S = pd.read_csv(temp_dir / "stoichiometry.csv", index_col="metabolite")
+    S = pd.read_csv(model_dir / "stoichiometry.csv", index_col="metabolite")
     for i in range(50):
         # Shuffle the columns
         np.random.seed(i)
@@ -87,11 +81,10 @@ def test_free_x_shuffle_S():
         assert free_x[orders].sum() == 1, "Only one exchange reaction can be free"
 
 
-@pytest.mark.usefixtures("model_small")
-def test_all_small():
+def test_all_small(model_small):
     """ Test all possible combinations of fixed and free in the small model"""
-    temp_dir = Path("temp_dir")
-    S = pd.read_csv(temp_dir / "stoichiometry.csv", index_col="metabolite")
+    model_dir = Path("temp_dir")
+    S = pd.read_csv(model_dir / "stoichiometry.csv", index_col="metabolite")
     exchange = get_exchange_rxns(S)
     x_vars = pd.concat([S.columns[exchange].to_series(), S.index.to_series()])
     # Now find the combinations of possible free variables

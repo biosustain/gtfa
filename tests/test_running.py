@@ -1,16 +1,14 @@
 import os
 import shutil
 from pathlib import Path
+
 import pytest
 
-# Do not remove!
 from gtfa import run_config
-from .model_setup import model_small
 from src.model_configuration import load_model_configuration
 
 
-@pytest.mark.usefixtures("model_small")
-def test_run_direct():
+def test_run_direct(model_small):
     """ Run the command directly"""
     # Clean up if the results dir is still there
     if Path("../results/small_test").exists():
@@ -21,8 +19,7 @@ def test_run_direct():
     shutil.rmtree("../results/small_test")
 
 
-@pytest.mark.usefixtures("model_small")
-def test_run_cmdline():
+def test_run_cmdline(model_small):
     """ Test running gtfa from the command line"""
     # Clean up if the results dir is still there
     if Path("../results/small_test").exists():
@@ -33,8 +30,8 @@ def test_run_cmdline():
     assert len(list(Path("../results/small_test").iterdir())) == 1, "There should be a single folder in there"
     shutil.rmtree("../results/small_test")
 
-@pytest.mark.usefixtures("model_small")
-def test_run_cmdline_many():
+
+def test_run_cmdline_many(model_small):
     """ Test running gtfa from the command line with multiple runs"""
     # Clean up if the results dir is still there
     if Path("../results/small_test").exists():

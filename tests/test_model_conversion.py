@@ -2,28 +2,25 @@ import logging
 import shutil
 from pathlib import Path
 
-import scipy
-from cobra.util.array import create_stoichiometric_matrix
 import cobra.util.array
 import numpy as np
 import pandas as pd
 import pytest
+import scipy
+from cobra.util.array import create_stoichiometric_matrix
 
 from src.dgf_estimation import calc_model_dgfs_with_prediction_error
-from src.fitting import generate_samples, stan_input_from_config
+from src.fitting import generate_samples
 from src.model_configuration import load_model_configuration
 from src.model_conversion import write_gollub2020_models, get_compartment_conditions
 
-# Don't delete
-# from .model_setup import ecoli_model, model_small
-from .model_setup import ecoli_model, model_small, temp_dir
 logger = logging.getLogger()
 logging.basicConfig(level=logging.DEBUG)
 formatter = logging.Formatter('%(asctime)s | %(name)s | %(levelname)s | %(message)s')
 
 base_dir = Path(__file__).parent.parent
 
-@pytest.mark.usefixtures("ecoli_model")
+
 @pytest.mark.xfail(raises=NotImplementedError, reason="Duplicate compounds aren't supported yet")
 def test_model_writing(ecoli_model):
     temp_dir = Path("temp_dir")
@@ -45,7 +42,6 @@ def test_model_writing(ecoli_model):
     np.testing.assert_array_almost_equal(calc_dgf_cov, file_cov.to_numpy())
 
 
-@pytest.mark.usefixtures("model_small")
 def test_model_writing_small(model_small):
     # Add the test dir
     temp_dir = Path("temp_dir")
@@ -60,7 +56,6 @@ def test_model_writing_small(model_small):
     np.testing.assert_array_almost_equal(calc_dgf_cov, file_cov.to_numpy())
 
 
-@pytest.mark.usefixtures("model_small")
 def test_small_model_prior(model_small):
     # Add the test dir
     temp_dir = Path("temp_dir")
@@ -81,7 +76,6 @@ def test_small_model_prior(model_small):
     np.testing.assert_array_almost_equal(calc_dgf_cov, file_cov.to_numpy())
 
 
-@pytest.mark.usefixtures("temp_dir")
 @pytest.mark.xfail(raises=NotImplementedError, reason="Duplicate compounds aren't supported yet")
 def test_gollub_files_read_singles(temp_dir):
     """ Test that all gollub model files can be read and converted individually"""
@@ -124,7 +118,6 @@ def test_gollub_files_read_singles(temp_dir):
         pd.testing.assert_series_equal(exp_log_conc_sd, real_met_conc_sd, check_names=False)
 
 
-@pytest.mark.usefixtures("temp_dir")
 @pytest.mark.xfail(raises=NotImplementedError, reason="Duplicate compounds aren't supported yet")
 def test_gollub_files_fit_singles(temp_dir):
     """ Test that all gollub model files can be read and fitted without issues"""
@@ -142,5 +135,3 @@ def test_gollub_files_fit_singles(temp_dir):
         result_dir.mkdir()
         config.result_dir = result_dir
         generate_samples(config)
-
-

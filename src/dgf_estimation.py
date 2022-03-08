@@ -4,14 +4,16 @@ import pathlib
 import numpy as np
 import pandas as pd
 from equilibrator_api import ComponentContribution
-from equilibrator_cache import Compound, Q_
+from equilibrator_cache import Q_
 from equilibrator_cache.exceptions import MissingDissociationConstantsException
 
 root_dir = pathlib.Path(__file__).parent.parent
 logger = logging.getLogger(__name__)
 
+cc = ComponentContribution()
 
-def calc_model_dgfs_with_prediction_error(model, cc=None):
+
+def calc_model_dgfs_with_prediction_error(model):
     """
     With the given predictor, calculate the formation energies of all metabolites in the model.
 
@@ -20,17 +22,15 @@ def calc_model_dgfs_with_prediction_error(model, cc=None):
     :param model:
     :return:
     """
-    if cc is None:
-        cc = ComponentContribution()
     compound_ids = [m.id for m in model.metabolites]
-    compound_list = get_eq_compounds(model, cc)
+    compound_list = get_eq_compounds(model)
     # Check for duplicate compounds
     if len(compound_list) != len(set(compound_list)):
         # This is not currently implemented because absolute covariance between compounds needs to be accounted for
         raise NotImplementedError("The model contains duplicate compounds (perhaps internal and external metabolites). "
                                   "This is not currently supported")
     # A dataframe with the manually calculated group decompositions
-    dgf_means, dgf_cov, met_groups, missing_estimates = get_cov_eq(cc, compound_ids, compound_list)
+    dgf_means, dgf_cov, met_groups, missing_estimates = get_cov_eq(compound_ids, compound_list)
     # Add the legendre transform to the formation energies for the different compartments
     if hasattr(model, "compartment_conditions"):
         adjustment = calculate_legendre_transform(compound_ids, compound_list, model)
@@ -44,7 +44,8 @@ def calc_model_dgfs_with_prediction_error(model, cc=None):
     cc_mets = met_groups[:, :N_cc].any(axis=1)
     gc_mets = met_groups[:, N_cc:].any(axis=1)
     none_mets = ~met_groups.any(axis=1)
-    assert (none_mets | np.logical_xor(cc_mets, gc_mets)).all(), "The metabolites should either be in the cc or gc group"
+    assert (none_mets | np.logical_xor(cc_mets,
+                                       gc_mets)).all(), "The metabolites should either be in the cc or gc group"
     dgf_cov.loc[cc_mets, cc_mets] += np.diag(np.full(cc_mets.sum(), MSE_rc))
     dgf_cov.loc[gc_mets, gc_mets] += np.diag(np.full(gc_mets.sum(), MSE_gc))
     # Add the variances of the missing values
@@ -69,11 +70,11 @@ def calculate_legendre_transform(compound_ids, compound_list, model):
     return adjustments
 
 
-def get_cov_eq(cc, compound_ids, compound_list):
+def get_cov_eq(compound_ids, compound_list):
     """
     Calculate the covaraince matrix of the formation energies of the model metabolites using equilibrator's own methods
     """
-    compound_vectors, missing_estimates = get_group_matrix(cc, compound_ids, compound_list)
+    compound_vectors, missing_estimates = get_group_matrix(compound_ids, compound_list)
     # Using matrix multiplication instead of concatenating the individual results. It's also easier because we have
     # hand-calculated compounds
     compound_Lc = cc.predictor.preprocess.L_c @ compound_vectors.T
@@ -86,7 +87,7 @@ def get_cov_eq(cc, compound_ids, compound_list):
     return dgf_means, dgf_cov_mat, compound_vectors, missing_estimates
 
 
-def get_group_matrix(cc, compound_ids, compound_list):
+def get_group_matrix(compound_ids, compound_list):
     params = cc.predictor.params
     man_group_df = pd.read_csv(root_dir / "data" / "raw" / "new_compound_groups.csv", index_col=0)
     exception_list = pd.read_excel(root_dir / "data" / "raw" / "exceptions.xlsx", header=None, index_col=0)
@@ -104,7 +105,7 @@ def get_group_matrix(cc, compound_ids, compound_list):
             logger.info(f"Compound {c_id} is in the list of exceptions and has a dgf and variance of 0")
             c_groups = np.zeros(n_groups)
         else:
-            c_groups = get_groups(c, c_id, cc, man_group_df)
+            c_groups = get_groups(c, c_id, man_group_df)
             if c_groups is None:
                 logger.warning(f"The metabolite {c_id} could not be decomposed into groups. It is assumed to have 0 ")
                 c_groups = np.zeros(n_groups)
@@ -115,7 +116,7 @@ def get_group_matrix(cc, compound_ids, compound_list):
     return G, missing_estimates
 
 
-def get_groups(c, c_id, cc, man_group_df):
+def get_groups(c, c_id, man_group_df):
     groups = cc.predictor.preprocess.get_compound_vector(c)
     if groups is None:
         # Try to fill in with manual group decompositions
@@ -125,7 +126,7 @@ def get_groups(c, c_id, cc, man_group_df):
     return groups
 
 
-def get_eq_compounds(model, cc):
+def get_eq_compounds(model):
     # A file containing a mapping from bigg to Kegg IDs
     ids_path = root_dir / "data" / "raw" / "from_gollub_2020" / "compound_ids.csv"
     id_df = pd.read_csv(ids_path, index_col=0, comment="#")
@@ -134,7 +135,7 @@ def get_eq_compounds(model, cc):
     compound_list = []
     for m in model.metabolites:
         bigg_id = m.id[:-2]
-        kegg_compound = get_kegg_match(cc, bigg_id, id_df)
+        kegg_compound = get_kegg_match(bigg_id, id_df)
         bigg_compound = cc.get_compound(f"bigg.metabolite:{bigg_id}")
         if kegg_compound is not None and bigg_compound is not None and kegg_compound != bigg_compound:
             logger.warning(f"{bigg_id} does not match the corresponding kegg ID {kegg_compound}. The compound matching "
@@ -149,7 +150,7 @@ def get_eq_compounds(model, cc):
     return compound_list
 
 
-def get_kegg_match(cc, bigg_id, id_df):
+def get_kegg_match(bigg_id, id_df):
     # Search for a kegg annoation first
     if bigg_id in id_df.index:
         # Search through the manual annoations for metabolites
@@ -174,4 +175,3 @@ def get_kegg_match(cc, bigg_id, id_df):
         if not all(match == valid_matches[0] for match in valid_matches):
             logger.warning(f"Multiple conflicting matches for compound {bigg_id}. Using first match.")
     return valid_matches[0]
-
