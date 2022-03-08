@@ -10,9 +10,9 @@ import scipy
 from cobra.util.array import create_stoichiometric_matrix
 
 from src.dgf_estimation import calc_model_dgfs_with_prediction_error
-from src.fitting import generate_samples
+from src.fitting import generate_samples, stan_input_from_dir
 from src.model_configuration import load_model_configuration
-from src.model_conversion import write_gollub2020_models, get_compartment_conditions
+from src.model_conversion import write_gollub2020_models, get_compartment_conditions, write_model_files
 
 logger = logging.getLogger()
 logging.basicConfig(level=logging.DEBUG)
@@ -76,6 +76,21 @@ def test_small_model_prior(model_small):
     np.testing.assert_array_almost_equal(calc_dgf_cov, file_cov.to_numpy())
 
 
+def test_excluded_reactions_single(model_small):
+    # Add the test dir
+    temp_dir = Path("temp_dir")
+    # Test first without the new excluded reaction
+    stan_input = stan_input_from_dir(temp_dir)
+    assert stan_input["N_exchange"] == 2, "Standard transport reaciton"
+    # Write the files again
+    S = pd.read_csv(temp_dir / "stoichiometry.csv", index_col="metabolite") # Nothing changes about the stoichiometry
+    dgf_means, dgf_cov_mat = calc_model_dgfs_with_prediction_error(model_small)
+    write_model_files(temp_dir, S, dgf_means, dgf_cov_mat, exclude_list=["g6p/g1p"])
+    stan_input = stan_input_from_dir(temp_dir)
+    # Test the expected input
+    assert stan_input["N_exchange"] == 3, "Expect extra transport reaction"
+
+
 @pytest.mark.xfail(raises=NotImplementedError, reason="Duplicate compounds aren't supported yet")
 def test_gollub_files_read_singles(temp_dir):
     """ Test that all gollub model files can be read and converted individually"""
@@ -93,7 +108,7 @@ def test_gollub_files_read_singles(temp_dir):
         model.compartment_conditions = get_compartment_conditions(model, model_struct)
         # Add the excluded reactions
         exclude_rxns = model_struct["model"]["isConstraintRxn"][0, 0].flatten() == 0
-        model.Exclude_list = [model.reactions[i].id for i in np.where(exclude_rxns)[0]]
+        model.exclude_list = [model.reactions[i].id for i in np.where(exclude_rxns)[0]]
         # The stoichiometric matrices should match
         stoichiometry = pd.read_csv(temp_dir / "stoichiometry.csv", index_col=0)
         true_s = create_stoichiometric_matrix(model)

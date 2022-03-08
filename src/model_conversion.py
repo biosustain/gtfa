@@ -29,6 +29,7 @@ def write_gollub2020_models(mat_files: [pathlib.Path], model_dir: pathlib.Path):
     met_conc_means = []
     log_conc_sd = []
     stoichiometric_matrices = []
+    exclude_lists = []
     for mat_file in mat_files:
         model_struct = scipy.io.loadmat(mat_file)
         # Read in the model
@@ -39,7 +40,8 @@ def write_gollub2020_models(mat_files: [pathlib.Path], model_dir: pathlib.Path):
         model.dgr_memb_correction = model_struct["model"]["drgCorr"][0, 0].flatten()
         # Get a list of excluded reactions
         exclude_rxns = model_struct["model"]["isConstraintRxn"][0, 0].flatten() == 0
-        model.Exclude_list = [model.reactions[i].id for i in np.where(exclude_rxns)[0]]
+        model.exclude_list = [model.reactions[i].id for i in np.where(exclude_rxns)[0]]
+        exclude_lists.append(model.exclude_list)
         # Convert to a pandas dataframe
         S_df = util.get_smat_df(model)
         stoichiometric_matrices.append(S_df)
@@ -64,9 +66,11 @@ def write_gollub2020_models(mat_files: [pathlib.Path], model_dir: pathlib.Path):
     # All stoichiometric matrices should be the same
     assert all(np.allclose(stoichiometric_matrices[0], stoichiometric_matrices[i]) for i in
                range(1, len(stoichiometric_matrices)))
+    # All exclude lists should be the same
+    assert all(np.allclose(exclude_lists[0], exclude_lists[i]) for i in range(1, len(exclude_lists)))
     # Send the files for writing
     write_model_files(model_dir, stoichiometric_matrices[0], dgf_means[0], dgf_covs[0], condition_names,
-                      met_conc_means, log_conc_sd)
+                      met_conc_means, log_conc_sd, exclude_lists[0])
 
 
 def get_compartment_conditions(model, model_struct):
@@ -105,7 +109,10 @@ def make_met_conc_df(met_ids, log_conc_means, log_met_sd, condition_name):
     return dgf_df
 
 
-def write_model_files(model_dir, S, dgf_means, dgf_cov_mat, conditions=None, log_conc_means=None, log_met_sd=None):
+def write_model_files(model_dir, S, dgf_means, dgf_cov_mat, conditions=None, log_conc_means=None, log_met_sd=None, exclude_list=None):
+    # Check for excluded reactions
+    if exclude_list is not None:
+        S = modify_excluded(S, exclude_list)
     met_ids = S.index
     cov = pd.DataFrame(dgf_cov_mat, columns=met_ids, index=met_ids)
     dgf_df = make_dgf_df(met_ids, dgf_means)
@@ -124,3 +131,15 @@ def write_model_files(model_dir, S, dgf_means, dgf_cov_mat, conditions=None, log
             all_measurements.append(log_met_df)
         all_measurements = pd.concat(all_measurements)
         all_measurements.to_csv(model_dir / "measurements.csv", index=False)
+
+
+def modify_excluded(S, excluded_reactions):
+    new_S = S.copy()
+    new_rxns = []
+    for rxn in S.columns:
+        if rxn in excluded_reactions:
+            new_rxns.append("EXCL_" + rxn)
+        else:
+            new_rxns.append(rxn)
+    new_S.columns = new_rxns
+    return new_S

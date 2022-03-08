@@ -38,21 +38,6 @@ def get_free_fluxes_solution(random_matrix):
         assert all(abs(random_matrix @ v) < eps)
 
 
-# @pytest.mark.usefixtures("model_small")
-# def test_excluded_reactions_single(model_small):
-#     # Add the test dir
-#     temp_dir = Path("temp_dir")
-#     # Test first without the new excluded reaction
-#     stan_input = stan_input_from_dir(temp_dir)
-#     assert stan_input["N_exchange"] == 2, "Standard transport reaciton"
-#     model_small.Exclude_list = ["g6p/g1p"]
-#     # Write the files again
-#     write_model_files(model_small, temp_dir)
-#     stan_input = stan_input_from_dir(temp_dir)
-#     # Test the expected input
-#     assert stan_input["N_exchange"] == 3, "Expect extra transport reaction"
-
-
 def test_free_x_calculation_true(model_small):
     temp_dir = Path("temp_dir")
     orders = ['EX_f1p_c', 'f6p_c']
