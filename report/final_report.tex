@@ -806,8 +806,16 @@ This is important because some metabolites within the network have (and are expe
 It is conceivable that metabolite concentrations with known accurate measurements could be prioritised as fixed variables, where concentration priors would anyway have little effect and could be dropped.
 This would leave a set of accurately measured fixed concentrations and a set of unmeasured metabolites with concentrations held in check by reasonable priors.
 Conceivably, this could do away with the improper-prior problem entirely, with the fixed concentrations consisting entirely of measured metabolites.
-
 It is clear that the assignment of fixed and free varaibles is a complex balancing of many factors and warrants further exploration.
+
+Finally, there are a number of changes that could be made to increase the speed of sampling.
+Perhaps the most important change would be to solve the relationship between fixed and free variables with symbolic algebra.
+Currently, each iteration performs a matrix division, which involves calculating the LU decomposition of the matrix \cite{stan_r_div}.
+While this operation is fast, it needs to be performed many times, once per leapfrog step of the NUTS-MCMC Sampler.
+An alternative would be to perform the matrix inversion with a symbolic algebra library such as SymPy \cite{sympy} to algebraically determine the relationships between fixed and free varaibles.
+This would allow the fixed variables to be calculated as a fixed function of the free variables, without the need of any matrix decompositions.
+Preliminary work suggests that this entirely possible, but the implementation of these often complex algebraic functions in Stan could be troublesome.
+
 
 
 % TODO: Mention Lars' thing here? - K apparrent could be informative for us.
@@ -825,6 +833,8 @@ It is clear that the assignment of fixed and free varaibles is a complex balanci
 \bibliography{bibliography}
 
 \section*{Supporting information}
+
+\subsection{Proof that fixed and free columns of $S_m$ are always valid}
 
 % Include only the SI item label in the paragraph heading. Use the \nameref{label} command to cite SI items in the text.
 %\paragraph*{S1 Fig.}
