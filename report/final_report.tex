@@ -275,7 +275,6 @@ Lars Nielsen\textsuperscript{2,3},
 % Use "Eq" instead of "Equation" for equation citations.
 \section*{Introduction}
 
-% TODO: Longer intro to the field in general?
 Modelling of feasible intracellular fluxes has long been a key task in metabolic engineering, with the end goal being the most accurate picture of internal fluxes of a microorganism given sparse data.
 If little data is available, the space of valid fluxes can be relatively large, limited only by fundamental reaction stoichiometry and mass-balance laws
 \[
@@ -312,10 +311,10 @@ Firstly, we will begin with some fundamental thermodynamic properties of reactio
 For a reaction to be valid, its Gibbs energy ($\dgr$) must be less than 0.
 In practice, the $\dgr$ of reaction $i$ is calculated as the sum of the Gibbs energy of reaction under standard conditions ($\sdgr$) and the scaled logarithm of products over reactants (\ref{eq:dgr})
 \begin{align}
-    \dgr_i &= \sdgr_i + RT\ln \frac{P}{R} \label{eq:dgr}
+    \dgr_i &= \sdgr_i + RT\ln \frac{Q_i} \label{eq:dgr}
 \end{align}
-where $R$ is the gas constant, $T$ is the temperature and $P$ and $R$ are the concentrations of the reaction's products and reactants respectively.
-% TODO: Replace the above with Q
+where $R$ is the gas constant, $T$ is the temperature and $Q$ is the reaction quotient.
+
 Because the Gibbs energy of a reaction is a state function, the $\dgr$ and $\sdgr$ of a reaction are equivalent to the Gibbs energy of formation ($\dgf$) and standard Gibbs energy of formation ($\sdgf$) respectively of all reaction substrates, when scaled by their stoichiometries.
 That is,
 \[
@@ -835,6 +834,8 @@ Preliminary work suggests that this entirely possible, but the implementation of
 \section*{Supporting information}
 
 \subsection{Proof that fixed and free columns of $S_m$ are always valid}
+
+
 
 % Include only the SI item label in the paragraph heading. Use the \nameref{label} command to cite SI items in the text.
 %\paragraph*{S1 Fig.}
