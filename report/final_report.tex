@@ -332,9 +332,11 @@ Eq~\ref{eq:dgr_vec} shows the relation between the $\dgr$ and $\sdgr$ and Eq~\re
 As these values are estimated, another benefit of Eq~\ref{eq:dgr_sdgf_vec} becomes clear, namely that all combinations of $\dgf$ produce a system that is thermodynamically consistent.
 An arbitrarily chosen set of $\dgr$ does not satisfy this property, hence the truncated $\dgr$ normal distribution of \cite{PTA} (see~\cite{noor_2013_equilibrator} for a more thorough description of this property).
 
-Both $\mathbf{c}$ and $\sdgf$ can not be known for certain and need to be estimated.
-There have been a number of approaches to estimating the $\sdgf$ and $\sdgr$ of unknown compounds and reactions.
-In what \citet{noor_2013_equilibrator} dubbed the Reactant Contribution (rc) method \cite{ALBERTY_1998_thermo_data}, known $\sdgf$ values and linear combinations of known $\sdgr$ values can be combined to determine the $\sdgf$ of compounds whose formation energies have never been directly measured.
+The Thermodynamics of of Enzyme-Catalysed Reactions Database (TECRDB) \cite{tecrdb} contains $\sdgr$ values for over 400 common metabolic reactions, which are determined experimentally by measuring substrate concentrations at equilibrium. %TODO: Number of reactions in TERCDB
+Unfortunately, these known reactions only cover a small fraction of reactions in a full-scale genome scale model, e.g. only 10\% of the \textit{E. Coli} reconstruction iAF1260 \cite{recon_low_coverage}.
+A number of methods have been developed to predict the $\sdgr$ of reactions and $\sdgf$ of compounds to improve the thermodynamic accuracy of models.
+In what \citet{noor_2013_equilibrator} dubbed the Reactant Contribution (rc) method, \cite{burton_original_rc}, known $\sdgf$ values and linear combinations of known $\sdgr$ values can be combined to determine the $\sdgf$ of compounds whose formation energies have never been directly measured.
+This approach has been used to publish tables of compound $\sdgf$ values, the most comprehensive of which are provided by \cite{alberty_dgf_table}
 This boils down to a linear regression on reaction Gibbs energies as a function of their substrates.
 The Group Contribution (gc) method \cite{JANKOWSKI_2008_group_contribution, Mavrovouniotis_1990_group_contribtuion} increases coverage by representing each compound as a vector of its consittuent chemical moieties, which allows the estimation of $\sdgf$ of compounds not in the training data.
 However, in representing each compound as a vector of independent moieties, this approach introduces additional errror and is thus less accurate.
@@ -344,7 +346,6 @@ Despite the increased coverage provided by gc, there are still compounds and rea
 For example, some groups are not present in the training data for the linear model and thus the value of any reactions involving this group are unknown.
 Additionally, the process of breaking a compound down into groups sometimes fails, particularly in the case of very simple molecules like ions, or very complex molecules, e.g. those containing complex ring strucutres.
 These reactions are typically estimated with a mean of 0 and a large uncertainty.
-% TODO: Make sure the above alberty reference is correct
 
 When integrating these estimates into models, this uncertainty needs to be accounted for.
 TMFA \cite{HENRY_2007_tmfa} defines this margin of error for $\sdgr$ and metabolite concentrations by constraining them individually to fall within the 95\% confidence interval.
@@ -375,9 +376,6 @@ Furthermore, GTFA allows the inclusion of metabolomics, proteomics and fluxomics
 The final output of GTFA is then a set thermodynamically-valid fluxes, which respects the probability of each of these varied data sources.
 
 
-
-% TODO: Maybe some examples? Slower explanation of how there is probabilistic information attached to all of these measurements?
-
 \section*{Materials and methods}
 
 \subsection{Model formulation}
@@ -403,27 +401,26 @@ Measurement densities are described as follows:
 % TODO: The notation here is a little lax. How can we do it nicely showing that this is conditional on the params?
 % TODO: Check bayesian paper for their notation style as well
 \begin{align*}
-    \mathbf{y_{e}} ~ LN(\ln{\be}, \Sigma_{me}) \\
-    \mathbf{y_{c}} ~ LN(\ln{\bc}, \Sigma_{mc}) \\
-    \mathbf{y_{v}} ~ N(\bv, \Sigma_{mv}) \\
+    \mathbf{y_{e}}|\ln{\be}, \Sigma_{me} ~ LN(\ln{\be}, \Sigma_{me}) \\
+    \mathbf{y_{c}}|\ln{\bc}, \Sigma_{mc} ~ LN(\ln{\bc}, \Sigma_{mc}) \\
+    \mathbf{y_{v}}|\bv, \Sigma_{mv} ~ N(\bv, \Sigma_{mv}) \\
 \end{align*}
 where $\Sigma_{me}$, $\Sigma_{mc}$ and $\Sigma{mv}$ are the covariance matrices of the respective measurement errors.
 As the measurement errors are assumed to be independent, these covariance matrices are diagonal and thus uniquely defined by their traces $\mathbf{\sigma_{be}}$, $\mathbf{\sigma_{bc}}$, $\mathbf{\sigma_{bv}}$.
 
 The priors are defined as follows:
 \begin{align*}
-    \be ~ LN(\mathbf{\mu_e}, \Sigma_e) \\
-    \bb ~ LN(\mathbf{\mu_b}, \Sigma_b) \\
-    \bc ~ LN(\mathbf{\mu_c}, \Sigma_c) \\
-    \bsdgf ~ N(\mathbf{\mu_{f}}, \Sigma_{f}) \\
+    \be|\mathbf{\mu_e}, \Sigma_e ~ LN(\mathbf{\mu_e}, \Sigma_e) \\
+    \bb|\mathbf{\mu_b}, \Sigma_b ~ LN(\mathbf{\mu_b}, \Sigma_b) \\
+    \bc|\mathbf{\mu_c}, \Sigma_c ~ LN(\mathbf{\mu_c}, \Sigma_c) \\
+    \bsdgf|\mathbf{\mu_{f}}, \Sigma_{f} ~ N(\mathbf{\mu_{f}}, \Sigma_{f}) \\
 \end{align*}
-where $\mathbf{\mu_e}$, $\mathbf{\mu_c}$, $\mathbf{\mu_v}$, $\mathbf{\mu_b}$ and $\mathbf{\mu_f}$ are the means of the prior distributions and $\Sigma_e$,$\Sigma_b$, $\Sigma_c$,$\Sigma_v$, $\Sigma_f$ are the covariance matrices of the priors distributions.
+where the constant hyperparameters $\mathbf{\mu_e}$, $\mathbf{\mu_c}$, $\mathbf{\mu_v}$, $\mathbf{\mu_b}$ and $\mathbf{\mu_f}$ are the means of the prior distributions and $\Sigma_e$,$\Sigma_b$, $\Sigma_c$,$\Sigma_v$, $\Sigma_f$ are the covariance matrices of the priors distributions.
 The covariance matrices $\Sigma_e$, $\Sigma_b$, $\Sigma_c$ and $\Sigma_v$ assume independence between the individual entries with traces of $\mathbf{\sigma_e}$, $\mathbf{\sigma_b}$, $\mathbf{\sigma_c}$ and $\mathbf{\sigma_v}$.
 For priors on the enzyme and metabolite concentrations we apply the same method as~\cite{PTA} and fit a normal distribution to all conditions in the dataset. %TODO: Actually do this and put the values here
+% TODO: Below should come at the end - We can define the constant scalar hyperparameters once the model is finished
 Defining a prior for $b$ is more difficult, as there is little prior information on such a quantity and it is expected to vary greatly across reactions.
 
-We somewhat arbitrarily used a lognormal distribution with a mean of 3 and a sd of 3.
-% TOdo: Refer to actual analysis here.
 Defining a prior for $\bsdgf$ was more complex process as it relied on estimates provided by equilibrator~\cite{noor_2013_equilibrator}.
 This is described more thoroughly in Section~\ref{sec:sdgf_estimation}.
 \begin{align}
@@ -431,23 +428,6 @@ This is described more thoroughly in Section~\ref{sec:sdgf_estimation}.
         &= S^T (\bsdgr + RT\ln{\bc}) \odot \be \odot \bb \\
 \end{align}
 .
-Measurement densities are described as follows:
-% TODO: The notation here is a little lax. How can we do it nicely showing that this is conditional on the params?
-\begin{align*}
-    \mathbf{y_{e}} ~ LN(\ln{\be}, \Sigma_{me}) \\
-    \mathbf{y_{c}} ~ LN(\ln{\bc}, \Sigma_{mc}) \\
-    \mathbf{y_{v}} ~ N(\bv, \Sigma_{mv}) \\
-\end{align*}
-where $\Sigma_{me}$, $\Sigma_{mc}$ and $\Sigma{mv}$ are the covariance matrices of the respective measurement errors.
-As the measurement errors are assumed to be independent, these covariance matrices are diagonal and thus uniquely defined by their traces $\mathbf{\sigma_{be}}$, $\mathbf{\sigma_{bc}}$, $\mathbf{\sigma_{bv}}$.
-
-The priors are defined as follows:
-\begin{align*}
-    \be ~ LN(\mathbf{\mu_e}, \Sigma_e) \\
-    \bb ~ LN(\mathbf{\mu_b}, \Sigma_b) \\
-    \bc ~ LN(\mathbf{\mu_c}, \Sigma_c) \\
-    \bsdgf ~ N(\mathbf{\mu_{f}}, \Sigma_{f}) \\
-\end{align*}
 
 \subsubsection{Exchange reactions}
 The first adaption to the model is the inclusion of exchange reactions.
@@ -465,8 +445,10 @@ The model then defines internal fluxes as before
 \end{align}
 with a normal prior on the exchange fluxes, which are now free parameters
 \begin{align*}
-    \bv_{\Pi} ~ N(\mathbf{\mu_{v_{\Pi}}}, \Sigma_{v_{\Pi}}) \\
+    \bv_{\Pi}|\mathbf{\mu_{v_{\Pi}}}, \Sigma_{v_{\Pi}} ~ N(\mathbf{\mu_{v_{\Pi}}}, \Sigma_{v_{\Pi}}) \\
 \end{align*}
+where $\mathbf{\mu_{v_{\Pi}}}$ and $\Sigma_{v_{\Pi}}$ are constant hyperparameters of the prior.
+% TODO: Move the below to the end.
 As a first approximation, we set $\mu_v{\Pi}=0$ and $\Sigma_{v_{\Pi}}=4.5e^{-3} mol\cdot h^{-1} \cdot gCDW^{-1}$, the result of a normal distribution fit on the exchange reactions of \cite{GEROSA_2015_dataset_pseudo_transition}.
 This formulation highlights the fact that, with exchange fluxes allowed to vary freely and internal fluxes dependent upon other parameters, there is no guarantee that the steady-state condition holds.
 In fact, it is impossible for the constraints to hold, which will be addressed in the next section.
@@ -477,7 +459,7 @@ To ensure that all parameter configurations are valid, these degrees of freedom 
 Often a non-linear solver will be applied to determine a set of fixed parameters that satisfy the given constraints from the parameters that are free to vary \cite{stan_docs_solver}.
 Luckily, because of the aforementioned linear dependence between $v$, $\bsdgf$ and $\ln{\bc}$, the fixed parameters can easily be determined as a linear combination of free parameters.
 \\
-If we rearrange these linear relations into a single matrix, the process of solving for fixed parameters is greatly simplified.
+The final model involves rearranging these linear relations into a single matrix, the process of solving for fixed parameters is greatly simplified.
 For this purpose we require a number of definitions:
 \begin{align}
     S_v = \begin{bmatrix}
@@ -517,15 +499,19 @@ This gives a model with the fixed variables of $x$ determined by free varaiables
 \end{align}
 This requires modified priors
 \begin{align}
-    \bv_\Pi^{fr} ~ N(\mathbf{\mu_{v_{\Pi}}}, \Sigma_{v_{\Pi}}) \\
-    \bc^{fi} ~ LN(\mathbf{\mu_c}, \Sigma_c) \\
-    \bc^{fr} ~ LN(\mathbf{\mu_c}, \Sigma_c) \\
+    \bv_\Pi^{fr}|\mathbf{\mu_{v_{\Pi}}^{fr}}, \Sigma_{v_{\Pi}^{fr}} ~ N(\mathbf{\mu_{v_{\Pi}}^{fr}}, \Sigma_{v_{\Pi}^{fr}}) \\
+    \bc^{fi}|\mathbf{\mu_{c^{fi}}}, \Sigma_{c^{fi}} ~ LN(\mathbf{\mu_{c^{fi}}}, \Sigma_{c^{fi}}) \\
+    \bc^{fr}|\mathbf{\mu_{c^{fi}}}, \Sigma_{c^{fi}} ~ LN(\mathbf{\mu_{c^{fi}}}, \Sigma_{c^{fi}}) \\
 \end{align}
-for the model.
+where $\mathbf{\mu_{v_{\Pi}}^{fr}}$, $\mathbf{\mu_{c^{fi}}}$,  $\mathbf{\mu_{c^{fi}}}$, $\Sigma_{v_{\Pi}^{fr}}$, $\Sigma_{c^{fi}}$, $\Sigma_{c^{fi}}$ are the constant hyperparameters of the priors
 The prior for $\bc$ is interesting in that $\bc^{fi}$ are not true parameters of the model.
 This means that the prior on $\bc^{fr}$ is in fact an (inadmissable) combination of the direct prior and a transfomration of the transformed second prior on $\bc^{fi}$.
 This is further complicated by the fact that, as this is a transformation of paramters, a jacobian transformation should be included to account for the "stretching" of the parameter space by this transformation.
 In Section \ref{sec:x_prior} we show that this had no effect in practice and simplcity of formulation was preferred over any theoretical concerns.
+
+Now that the model is in its final form, the process of determining sensible hyperparameters for the priors can be discussed.
+
+% TODO: New commands for the priors above
 %TODO: The above prior is not "inadmissible" - there is another word for it
 % TODO: Should I also have a prior on the fixed exchange fluxes?
 % TODO: Make a table of the full models with likelihood and prior
@@ -535,25 +521,7 @@ In Section \ref{sec:x_prior} we show that this had no effect in practice and sim
 %TODO: Is dgr_m a nice symbol for the membrane potential? What do others use?
 %TODO: Replace the x part with \bdgf
 
-\subsubsection{Membrane potentials}
-% TODO: HOW ARE MEMBRANE POTENTIALS CALCULATED?
-The final aspect that needs to be included into the model is the addition of membrane potentials for intercompartmental reactions.
-This manifests itself as a single value that must be added to the $dgr$ of each reaction.
-This requires $S_v$ and $x$ to be slightly refactored.
-$S_v$ now includes an extra first column that contains the membrane potentials $\dgr_m \in \mathbb{R}^p$ and $x$ a first entry with the value $1$.
-This gives
-\[
-    S_v = \begin{bmatrix}
-              \mathbf{0} & \mathbf{I^p} & \mathbf{0} \\
-              \dgr_m & \mathbf{0} & S_{\Gamma}^T\\
-          \end{bmatrix} \\
-    x = \begin{bmatrix}
-            1 \\
-            \bv_\Pi \\
-            \bsdgf + RT\ln{\bc} \\
-        \end{bmatrix}
-\]
-leaving all other values unchanged.
+
 \subsection{Estimation of $\sdgf$} \label{sec:sdgf_estimation}
 
 % TODO: Talk about datasets
