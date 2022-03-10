@@ -1,12 +1,16 @@
 import itertools
 from pathlib import Path
 
+import arviz as az
 import numpy as np
 import pandas as pd
+import pytest
 import scipy
 
 import src.util as util
-from src.pandas_to_cmdstanpy import get_free_x_and_rows, get_exchange_rxns
+from src.fitting import run_stan
+from src.model_configuration import load_model_configuration
+from src.pandas_to_cmdstanpy import get_free_x_and_rows, get_exchange_rxns, get_coords
 
 
 def test_get_free_fluxes_solution_many():
@@ -83,3 +87,22 @@ def test_all_small(model_small):
             assert free_x[comb].sum() == 1, "Only one exchange reaction can be free"
         else:
             assert free_x[comb].sum() == 2, "All other combinations should be free"
+
+
+def test_directionality(small_model_irreversible):
+    """Test to make sure that irreversible reactions are going in the right direction"""
+    config = load_model_configuration("test_small_likelihood_full.toml")
+    S = pd.read_csv(config.data_folder / "stoichiometry.csv", index_col=0)
+    measurements = pd.read_csv(config.data_folder / "measurements.csv")
+    priors = pd.read_csv(config.data_folder / "priors.csv")
+    # This will be cleaned up with the rest of the files
+    config.result_dir = config.data_folder / "results"
+    # Remove the results file
+    mcmc = run_stan(config)
+    data = az.from_cmdstanpy(mcmc, coords=get_coords(S, measurements, priors, config.order))
+    df = data.posterior.flux.to_dataframe().unstack("flux_dim_0")
+    # Check that the irreversible fluxes are going in the right direction
+    assert (df.iloc[:, 0] > 0).all()  # g6p/g1p
+    assert (df.iloc[:, 1] > 0).all()  # g1p/f1p
+    assert (df.iloc[:, 2] < 0).all()  # f1p/f6p
+    assert (df.iloc[:, 3] < 0).all()  # f6p/g6p

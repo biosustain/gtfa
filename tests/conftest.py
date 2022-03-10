@@ -131,3 +131,29 @@ def model_small_rankdef_thermo():
     yield model
     # Clean up
     shutil.rmtree(temp_dir)
+
+
+@pytest.fixture
+def small_model_irreversible():
+    # Make sure that logging print statements still work
+    stream_handler = logging.StreamHandler(sys.stdout)
+    stream_handler.setFormatter(formatter)
+    logger.addHandler(stream_handler)
+    # Write the files
+    model = build_small_test_model()
+    log_concs, log_conc_scales = gen_random_log_concs(model)
+    dgfs, dgf_covs = calc_model_dgfs_with_prediction_error(model)
+    # Change the dgfs to be irreversible
+    dgfs[1] += 500  # The input has high energy
+    dgfs[2] -= 500  # The output has low energy
+    S = get_smat_df(model)
+    temp_dir = Path("temp_dir")
+    if temp_dir.exists():
+        shutil.rmtree(temp_dir)
+    result_dir = temp_dir / "results"
+    result_dir.mkdir(parents=True)
+    # Get the dgfs
+    model_conversion.write_model_files(temp_dir, S, dgfs, dgf_covs, ["1"], [log_concs], [log_conc_scales])
+    yield model
+    # Clean up
+    shutil.rmtree(temp_dir)
