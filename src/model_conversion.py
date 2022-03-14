@@ -104,7 +104,7 @@ def make_met_conc_df(met_ids, log_conc_means, log_met_sd, condition_name):
     # Write the enzyme concentration priors
     num_mets = len(log_conc_means)
     cols = ["measurement_type", "target_id", "condition_id", "measurement", "error_scale"]
-    column_data = zip(["mic"] * num_mets, met_ids, [condition_name] * num_mets, np.exp(log_conc_means), log_met_sd)
+    column_data = zip(["mic"] * num_mets, met_ids, [condition_name] * num_mets, log_conc_means, log_met_sd)
     dgf_df = pd.DataFrame(column_data, columns=cols)
     return dgf_df
 

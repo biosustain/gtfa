@@ -201,12 +201,12 @@ def check_input(measurements, priors):
         raise ValueError("At least one measurement is required")
     measurements_by_type = dict(measurements.groupby("measurement_type").__iter__())
     # Check that enzyme and metabolite measurements are in log scale
-    if "enzyme" in measurements_by_type and not measurements_by_type["enzyme"]["measurement"].between(0, 1).all():
-        raise ValueError("Enzyme concentration measurements should be between 0 and 1 molar"
-                         "Are they maybe recorded as log concentrations?")
-    if "mic" in measurements_by_type and not measurements_by_type["mic"]["measurement"].between(0, 1).all():
-        raise ValueError("Metabolite concentration measurements should be between 0 and 1 molar. "
-                         "Are they maybe recorded as log concentrations?")
+    if "enzyme" in measurements_by_type and measurements_by_type["enzyme"]["measurement"].between(0, 1).all():
+        raise ValueError("Enazyme log concentration measurements should be in the range of ~-13 to -5."
+                         "Are they maybe recorded as regular concentrations?")
+    if "mic" in measurements_by_type and measurements_by_type["mic"]["measurement"].between(0, 1).all():
+        raise ValueError("Metabolite log concentration measurements should be in the range of ~-13 to -5."
+                         "Are they maybe recorded as regular concentrations?")
     priors_by_type = dict(priors.groupby("parameter").__iter__())
     # Check that the lognormal priors are in the correct range
     if ("enzyme" in priors_by_type and not priors_by_type["enzyme"]["loc"].between(-20, 0).all()) \
@@ -305,14 +305,14 @@ def get_stan_input(
         "condition_y_flux": measurements_by_type["flux"]["condition_id"].map(
             codify(coords["condition"])).values.tolist(),
         # Concentrations given on a log scale
-        "y_enzyme": np.log(measurements_by_type["enzyme"]["measurement"]).values.tolist(),
+        "y_enzyme": measurements_by_type["enzyme"]["measurement"].values.tolist(),
         "sigma_enzyme": measurements_by_type["enzyme"]["error_scale"].values.tolist(),
         "internal_y_enzyme": measurements_by_type["enzyme"]["target_id"].map(
             codify(coords["internal_names"])).values.tolist(),
         "condition_y_enzyme": measurements_by_type["enzyme"]["condition_id"].map(
             codify(coords["condition"])).values.tolist(),
         # Concentrations given on a log scale
-        "y_metabolite": np.log(measurements_by_type["mic"]["measurement"]).values.tolist(),
+        "y_metabolite": measurements_by_type["mic"]["measurement"].values.tolist(),
         "sigma_metabolite": measurements_by_type["mic"]["error_scale"].values.tolist(),
         "metabolite_y_metabolite": measurements_by_type["mic"]["target_id"].map(
             codify(coords["metabolite"])).values.tolist(),
@@ -358,7 +358,6 @@ def fixed_prior_to_measurements(coords, priors):
     # Expand the IndPrior2d to the pandas dataframe format
     fixed_met_prior_df = prior_met_conc_fixed.to_dataframe("mic").rename(
         columns={"parameter": "target_id", "loc": "measurement", "scale": "error_scale"})
-    fixed_met_prior_df["measurement"] = np.exp(fixed_met_prior_df["measurement"])
     fixed_exchange_prior_df = prior_exchange_fixed.to_dataframe("flux").rename(
         columns={"parameter": "target_id", "loc": "measurement", "scale": "error_scale"})
     return fixed_exchange_prior_df, fixed_met_prior_df

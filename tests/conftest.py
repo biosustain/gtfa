@@ -72,7 +72,7 @@ def model_small():
     model_conversion.write_model_files(temp_dir, S, dgfs, dgf_covs, ["1"], [log_concs], [log_conc_scales])
     # We need at least one measurment
     header = pd.DataFrame(columns=["measurement_type", "target_id", "condition_id", "measurement", "error_scale"],
-                          data=[["mic", "f6p_c", "condition_1", 0.001, 0.1]])
+                          data=[["mic", "f6p_c", "condition_1", -2, 0.1]])
     header.to_csv(temp_dir / "measurements.csv", index=False)
     yield model
     # Clean up
@@ -99,7 +99,7 @@ def model_small_rankdef():
     model_conversion.write_model_files(temp_dir, S, dgfs, dgf_covs, ["1"], [log_concs], [log_conc_scales])
     # We need at least one measurment
     header = pd.DataFrame(columns=["measurement_type", "target_id", "condition_id", "measurement", "error_scale"],
-                          data=[["mic", "f6p_c", "condition_1", 0.001, 0.1]])
+                          data=[["mic", "f6p_c", "condition_1", -2, 0.1]])
     header.to_csv(temp_dir / "measurements.csv", index=False)
     yield model
     # Clean up
@@ -126,7 +126,7 @@ def model_small_rankdef_thermo():
     model_conversion.write_model_files(temp_dir, S, dgfs, dgf_covs, ["1"], [log_concs], [log_conc_scales])
     # We need at least one measurment
     header = pd.DataFrame(columns=["measurement_type", "target_id", "condition_id", "measurement", "error_scale"],
-                          data=[["mic", "f6p_c", "condition_1", 0.001, 0.1]])
+                          data=[["mic", "f6p_c", "condition_1", -2, 0.1]])
     header.to_csv(temp_dir / "measurements.csv", index=False)
     yield model
     # Clean up
