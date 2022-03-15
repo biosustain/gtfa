@@ -89,7 +89,7 @@ def test_all_small(model_small):
             assert free_x[comb].sum() == 2, "All other combinations should be free"
 
 
-@pytest.mark.xfail(reason="This test is failing because the directionalities are wrong")
+# @pytest.mark.xfail(reason="This test is failing because the directionalities are wrong")
 def test_directionality(small_model_irreversible):
     """Test to make sure that irreversible reactions are going in the right direction"""
     config = load_model_configuration("test_small_likelihood_full.toml")
@@ -99,12 +99,17 @@ def test_directionality(small_model_irreversible):
     mcmc = run_stan(config)
     # Now test the results
     S = pd.read_csv(config.data_folder / "stoichiometry.csv", index_col=0)
+    exchange_rxns = get_exchange_rxns(S)
     measurements = pd.read_csv(config.data_folder / "measurements.csv")
     priors = pd.read_csv(config.data_folder / "priors.csv")
     data = az.from_cmdstanpy(mcmc, coords=get_coords(S, measurements, priors, config.order))
-    df = data.posterior.flux.to_dataframe().unstack("flux_dim_0")
+    flux_df = data.posterior.flux.to_dataframe().unstack("flux_dim_0").loc[:, ~exchange_rxns]
+    b_df = data.posterior.b.to_dataframe().unstack("b_dim_0")
+    dgr_df = data.posterior.dgr.to_dataframe().unstack("dgr_dim_0")
     # Check that the irreversible fluxes are going in the right direction
-    assert (df.iloc[:, 0] > 0).all()  # g6p/g1p
-    assert (df.iloc[:, 1] > 0).all()  # g1p/f1p
-    assert (df.iloc[:, 2] < 0).all()  # f1p/f6p
-    assert (df.iloc[:, 3] < 0).all()  # f6p/g6p
+    assert ((flux_df.values * b_df.values * dgr_df.values) < 0).all(axis=None)
+    # Check the absolute fluxes of reactions that are very irreversible
+    assert (flux_df.iloc[:, 0] > 0).all()  # g6p/g1p
+    assert (flux_df.iloc[:, 1] > 0).all()  # g1p/f1p
+    assert (flux_df.iloc[:, 2] < 0).all()  # f1p/f6p
+    assert (flux_df.iloc[:, 3] < 0).all()  # f6p/g6p
