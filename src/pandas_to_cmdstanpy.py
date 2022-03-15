@@ -107,6 +107,14 @@ def get_exchange_rxns(S):
 def get_coords(S: pd.DataFrame, measurements: pd.DataFrame, priors: pd.DataFrame, order=None):
     if not type(priors) == pd.DataFrame:
         raise RuntimeError("priors must be a dataframe")
+    # Get a list of all conditions
+    measurement_conditions = measurements["condition_id"]
+    prior_conditions = priors["condition_id"][~priors["condition_id"].isna()]
+    conditions = measurement_conditions.append(prior_conditions).unique()
+    return get_coords_condition_list(S, conditions, order)
+
+
+def get_coords_condition_list(S: pd.DataFrame, conditions: [str], order=None):
     # Make sure they are protected for the regular expression
     is_exchange = get_exchange_rxns(S)
     base_ordering = S.columns[is_exchange].to_series().append(S.index.to_series())
@@ -130,10 +138,6 @@ def get_coords(S: pd.DataFrame, measurements: pd.DataFrame, priors: pd.DataFrame
     conc_fixed = S.index[~conc_free_ind]
     reaction_ind_map = codify(S.columns)
     met_ind_map = codify(S.index)
-    # Get a list of all conditions
-    measurement_conditions = measurements["condition_id"]
-    prior_conditions = priors["condition_id"][~priors["condition_id"].isna()]
-    conditions = measurement_conditions.append(prior_conditions).unique()
     return {
         # Maps to stan indices
         "reaction_ind": reaction_ind_map,
