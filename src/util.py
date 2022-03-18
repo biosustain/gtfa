@@ -214,3 +214,12 @@ def get_smat_df(model):
     S_df.index.name = "metabolite"
     S_df.columns.name = "reaction"
     return S_df
+
+
+def ind_to_mask(inds, n):
+    """
+    Convert a list of indices to a mask
+    """
+    mask = np.zeros(n, dtype=bool)
+    mask[inds] = True
+    return mask
