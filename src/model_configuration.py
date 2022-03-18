@@ -67,8 +67,17 @@ class ModelConfiguration:
         """Return a copy of the object."""
         return self.__copy__()
 
+    def to_toml(self, path: Path):
+        """Write a toml string representation of the object."""
+        with open(path, "w") as f:
+            dict = dataclasses.asdict(self)
+            for k, v in dict.items():
+                if isinstance(v, Path):
+                    dict[k] = str(v)
+            toml.dump(dict, f)
 
-def load_model_configuration(path: str) -> ModelConfiguration:
+
+def load_model_configuration(path: Path) -> ModelConfiguration:
     d = toml.load(path)
     # Warn if there are extra fields in the TOML that aren't expected
     extra = d.keys() - ModelConfiguration.__annotations__.keys()
