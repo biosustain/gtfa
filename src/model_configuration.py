@@ -8,8 +8,9 @@ from typing import Callable, Dict, Any
 import pandas as pd
 import toml
 
-
 logger = logging.getLogger(__name__)
+
+
 @dataclass
 class ModelConfiguration:
     """Container for a path to a Stan model and some configuration.
@@ -58,13 +59,30 @@ class ModelConfiguration:
             if not isinstance(field.default, dataclasses._MISSING_TYPE) and getattr(self, field.name) is None:
                 setattr(self, field.name, field.default)
 
+    def __copy__(self):
+        """Return a copy of the object."""
+        return dataclasses.replace(self)
 
-def load_model_configuration(path: str) -> ModelConfiguration:
+    def copy(self):
+        """Return a copy of the object."""
+        return self.__copy__()
+
+    def to_toml(self, path: Path):
+        """Write a toml string representation of the object."""
+        with open(path, "w") as f:
+            dict = dataclasses.asdict(self)
+            for k, v in dict.items():
+                if isinstance(v, Path):
+                    dict[k] = str(v)
+            toml.dump(dict, f)
+
+
+def load_model_configuration(path: Path) -> ModelConfiguration:
     d = toml.load(path)
     # Warn if there are extra fields in the TOML that aren't expected
     extra = d.keys() - ModelConfiguration.__annotations__.keys()
     if extra:
-        extra_str = ', '.join(map(str,extra))
+        extra_str = ', '.join(map(str, extra))
         logger.warning(f"The following unexpected params in the config file were ignored: {extra_str}")
     mc = ModelConfiguration(
         name=d.get("name"),
@@ -82,10 +100,12 @@ def load_model_configuration(path: str) -> ModelConfiguration:
         mc.result_dir = Path(path).parent / mc.result_dir
     if not mc.data_folder.is_absolute():
         mc.data_folder = Path(path).parent / mc.data_folder
+    if not mc.stan_file.is_absolute():
+        mc.stan_file = Path(path).parent / mc.stan_file
     # Check the paths
     validate_model_configuration(mc)
     return mc
-    
+
 
 def validate_model_configuration(mc: ModelConfiguration) -> None:
     assert os.path.exists(mc.stan_file), f"stan file {mc.stan_file} does not exist"
@@ -93,4 +113,3 @@ def validate_model_configuration(mc: ModelConfiguration) -> None:
     assert type(mc.name) is str, "name must be a string"
     assert mc.name != ""
     assert type(mc.likelihood) is bool
-    

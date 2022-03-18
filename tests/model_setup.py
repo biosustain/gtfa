@@ -1,86 +1,20 @@
 import logging
-import shutil
-import sys
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
-import pytest
 from cobra import Model, Metabolite, Reaction
-from cobra.io import load_model
-from multitfa.core import tmodel
 
-from src import model_conversion
+from src.dgf_estimation import cc
+from src.pandas_to_cmdstanpy import DEFAULT_MET_CONC_MEAN, DEFAULT_MET_CONC_SCALE
 
 logger = logging.getLogger(__name__)
 formatter = logging.Formatter('%(asctime)s | %(name)s | %(levelname)s | %(message)s')
-@pytest.fixture
-def ecoli_model():
-    # Make sure that logging print statements still work
-    stream_handler = logging.StreamHandler(sys.stdout)
-    stream_handler.setFormatter(formatter)
-    logger.addHandler(stream_handler)
-    # Write the files
-    tmodel = build_test_model()
-    test_dir = Path("test_dir")
-    if test_dir.exists():
-        shutil.rmtree(test_dir)
-    result_dir = test_dir / "results"
-    result_dir.mkdir(parents=True)
-    model_conversion.write_model_files(tmodel, test_dir)
-    yield tmodel
-    # Clean up
-    shutil.rmtree(test_dir)
+# This makes the tests run faster
+base_dir = Path(__file__).parent.parent
 
 
-@pytest.fixture
-def model_small():
-    # Make sure that logging print statements still work
-    stream_handler = logging.StreamHandler(sys.stdout)
-    stream_handler.setFormatter(formatter)
-    logger.addHandler(stream_handler)
-    # Write the files
-    tmodel = build_small_test_model()
-    test_dir = Path("test_dir")
-    result_dir = test_dir / "results"
-    if test_dir.exists():
-        shutil.rmtree(test_dir)
-    test_dir.mkdir()
-    result_dir.mkdir()
-    model_conversion.write_model_files(tmodel, test_dir)
-    # We need at least one measurment
-    header = pd.DataFrame(columns=["measurement_type","target_id","condition_id","measurement","error_scale"],
-                          data=[["mic", "f6p_c", "condition_1", 0.001, 0.1]])
-    header.to_csv(test_dir / "measurements.csv", index=False)
-    yield tmodel
-    # Clean up
-    shutil.rmtree(test_dir)
-
-
-@ pytest.fixture
-def model_small_rankdef():
-    # Make sure that logging print statements still work
-    stream_handler = logging.StreamHandler(sys.stdout)
-    stream_handler.setFormatter(formatter)
-    logger.addHandler(stream_handler)
-    # Write the files
-    tmodel = build_small_test_model_rankdef()
-    test_dir = Path("test_dir")
-    result_dir = test_dir / "results"
-    if test_dir.exists():
-        shutil.rmtree(test_dir)
-    test_dir.mkdir()
-    result_dir.mkdir()
-    model_conversion.write_model_files(tmodel, test_dir)
-    # We need at least one measurment
-    header = pd.DataFrame(columns=["measurement_type","target_id","condition_id","measurement","error_scale"],
-                          data=[["mic", "f6p_c", "condition_1", 0.001, 0.1]])
-    header.to_csv(test_dir / "measurements.csv", index=False)
-    yield tmodel
-    # Clean up
-    shutil.rmtree(test_dir)
-
-
-def build_small_test_model_rankdef():
+def build_small_test_model_rankdef_stoich():
     """ From the example from Metabolic control theory: A structural approach
     https://doi.org/10.1016/S0022-5193(88)80073-0
 
@@ -90,9 +24,9 @@ def build_small_test_model_rankdef():
     model.add_metabolites([
         Metabolite(id="f6p_c", name="Fructose 6 phosphate", compartment="c"),
         Metabolite(id="g6p_c", name="Glucose 6 phosphate", compartment="c"),
-        Metabolite(id="ATP", name="ATP", compartment="c"),
+        Metabolite(id="atp_c", name="ATP", compartment="c"),
         Metabolite(id="f1p_c", name="Fructose 1 phosphate", compartment="c"),
-        Metabolite(id="ADP", name="ADP", compartment="c"),
+        Metabolite(id="adp_c", name="ADP", compartment="c"),
         Metabolite(id="g1p_c", name="Glucose 1 phosphate", compartment="c")
 
     ])
@@ -101,24 +35,23 @@ def build_small_test_model_rankdef():
                          ])
     # Add the reactions
     # Add the stoichiometry
-    model.reactions[0].build_reaction_from_string("f6p_c + ADP <--> f1p_c + ATP")
-    model.reactions[1].build_reaction_from_string("g6p_c + ATP <--> g1p_c + ADP")
+    model.reactions[0].build_reaction_from_string("f6p_c + adp_c <--> f1p_c + atp_c")
+    model.reactions[1].build_reaction_from_string("g6p_c + atp_c <--> g1p_c + adp_c")
     # Boundary reactions
     model.add_boundary(model.metabolites.get_by_id("f6p_c"), type="sink")
     model.add_boundary(model.metabolites.get_by_id("f1p_c"), type="exchange")
     model.add_boundary(model.metabolites.get_by_id("g6p_c"), type="exchange")
     model.add_boundary(model.metabolites.get_by_id("g1p_c"), type="exchange")
     # Make the compartment info
-    compartment_info = pd.DataFrame([[7.5, 0.25, 298.15]], index=["c"], columns=["pH", "I", "T"])
-    thermo_model = tmodel(model, compartment_info=compartment_info)
     # Add the KEGG ids
-    thermo_model.metabolites[0].Kegg_id = "kegg:C00085"
-    thermo_model.metabolites[1].Kegg_id = "kegg:C00668"
-    thermo_model.metabolites[2].Kegg_id = "kegg:C05001"
-    thermo_model.metabolites[3].Kegg_id = "kegg:C00103"
-    thermo_model.metabolites[4].Kegg_id = "kegg:C00002"
-    thermo_model.metabolites[5].Kegg_id = "kegg:C00008"
-    return thermo_model
+    model.metabolites[0].annotation = {"kegg.compound": "C00085"}
+    model.metabolites[1].annotation = {"kegg.compound": "C00668"}
+    model.metabolites[2].annotation = {"kegg.compound": "C05001"}
+    model.metabolites[3].annotation = {"kegg.compound": "C00103"}
+    model.metabolites[4].annotation = {"kegg.compound": "C00002"}
+    model.metabolites[5].annotation = {"kegg.compound": "C00008"}
+    model.compartment_conditions = make_default_compartment_conditions(model)
+    return model
 
 
 def build_small_test_model():
@@ -150,41 +83,144 @@ def build_small_test_model():
     model.add_boundary(model.metabolites.get_by_id("g6p_c"), type="sink", lb=1, ub=1)
     model.add_boundary(model.metabolites.get_by_id("f1p_c"), type="exchange")
     # Make the compartment info
-    compartment_info = pd.DataFrame([[7.5, 0.25, 298.15]], index=["c"], columns=["pH", "I", "T"])
-    thermo_model = tmodel(model, compartment_info=compartment_info)
     # Add the KEGG ids
-    thermo_model.metabolites[0].Kegg_id = "kegg:C00085"
-    thermo_model.metabolites[1].Kegg_id = "kegg:C00668"
-    thermo_model.metabolites[2].Kegg_id = "kegg:C05001"
-    thermo_model.metabolites[3].Kegg_id = "kegg:C00103"
-    return thermo_model
+    model.metabolites[0].annotation = {"kegg.compound": "C00085"}
+    model.metabolites[1].annotation = {"kegg.compound": "C00668"}
+    model.metabolites[2].annotation = {"kegg.compound": "C05001"}
+    model.metabolites[3].annotation = {"kegg.compound": "C00103"}
+    model.compartment_conditions = make_default_compartment_conditions(model)
+    return model
 
-####### Taken directly from multitfa load_test_model
-def build_test_model():
-    model = load_model("e_coli_core")
-    pH_I_T_dict = {
-        "pH": {"c": 7.5, "e": 7, "p": 7},
-        "I": {"c": 0.25, "e": 0, "p": 0},
-        "T": {"c": 298.15, "e": 298.15, "p": 298.15},
-    }
-    del_psi_dict = {
-        "c": {"c": 0, "e": 0, "p": 150},
-        "e": {"c": 0, "e": 0, "p": 0},
-        "p": {"c": -150, "e": 0, "p": 0},
-    }
-    del_psi = pd.DataFrame.from_dict(data=del_psi_dict)
-    comp_info = pd.DataFrame.from_dict(data=pH_I_T_dict)
-    Excl = [rxn.id for rxn in model.boundary] + [
-        "BIOMASS_Ecoli_core_w_GAM",
-        "O2t",
-        "H2Ot",
-    ]
-    tfa_model = tmodel(
-        model, Exclude_list=Excl, compartment_info=comp_info, membrane_potential=del_psi
-    )
-    for met in tfa_model.metabolites:
-        kegg_id = "bigg.metabolite:" + met.id[:-2]
-        met.Kegg_id = kegg_id
-    tfa_model.update()
-    return tfa_model
-########## End of direct copy
+
+# This test case doesn't produce a reduced rank dgf covaraince matrix
+def build_small_test_model_rankdef_thermo():
+    """ From the example from Metabolic control theory: A structural approach
+    https://doi.org/10.1016/S0022-5193(88)80073-0
+
+    The exact metabolites are unimportant and the row rank deficiency is important
+    """
+    model = Model("small_toy")
+    model.add_metabolites([
+        Metabolite(id="fum_c", name="Fumarate", compartment="c"),
+        Metabolite(id="male_c", name="Maleate", compartment="c"),
+        Metabolite(id="2obut_c", name="2 Oxobutyrate", compartment="c"),
+        Metabolite(id="acac_c", name="ACetoacetate", compartment="c"),
+        Metabolite(id="atp_c", name="ATP", compartment="c"),
+        Metabolite(id="adp_c", name="ADP", compartment="c"),
+        Metabolite(id="pi_c", name="Orhtophosphate", compartment="c"),
+    ])
+    model.add_reactions([Reaction("1"),
+                         Reaction("2"),
+                         Reaction("3"),
+                         Reaction("4")
+                         ])
+    # Add the reactions
+    # Add the stoichiometry
+    model.reactions[0].build_reaction_from_string("fum_c <--> male_c")
+    model.reactions[1].build_reaction_from_string("2obut_c <--> acac_c")
+    model.reactions[2].build_reaction_from_string("fum_c + atp_c <--> 2obut_c + adp_c + pi_c")
+    model.reactions[3].build_reaction_from_string("acac_c + atp_c <--> male_c + adp_c + pi_c")
+    # Boundary reactions
+    model.add_boundary(model.metabolites.get_by_id("fum_c"), type="sink")
+    model.add_boundary(model.metabolites.get_by_id("male_c"), type="exchange")
+    # Make the compartment info
+    # Add the KEGG ids
+    model.metabolites[0].annotation = {"kegg.compound": "C00122"}
+    model.metabolites[1].annotation = {"kegg.compound": "C01384"}
+    model.metabolites[2].annotation = {"kegg.compound": "C00109"}
+    model.metabolites[3].annotation = {"kegg.compound": "C00164"}
+    model.metabolites[4].annotation = {"kegg.compound": "C00002"}
+    model.metabolites[5].annotation = {"kegg.compound": "C00008"}
+    model.metabolites[6].annotation = {"kegg.compound": "C00009"}
+    model.compartment_conditions = make_default_compartment_conditions(model)
+    return model
+
+
+def build_small_test_model_exchanges():
+    """ From the example from Metabolic control theory: A structural approach
+    https://doi.org/10.1016/S0022-5193(88)80073-0
+
+    The exact metabolites are unimportant and the row rank deficiency is important
+    """
+    model = Model("small_toy")
+    model.add_metabolites([
+        Metabolite(id="fum_c", name="Fumarate", compartment="c"),
+        Metabolite(id="male_c", name="Maleate", compartment="c"),
+        Metabolite(id="2obut_c", name="2 Oxobutyrate", compartment="c"),
+        Metabolite(id="acac_c", name="ACetoacetate", compartment="c"),
+        Metabolite(id="atp_c", name="ATP", compartment="c"),
+        Metabolite(id="adp_c", name="ADP", compartment="c"),
+        Metabolite(id="pi_c", name="Orhtophosphate", compartment="c"),
+
+        Metabolite(id="fum_p", name="Fumarate", compartment="p"),
+        Metabolite(id="male_p", name="Maleate", compartment="p"),
+        Metabolite(id="2obut_p", name="2 Oxobutyrate", compartment="p"),
+        Metabolite(id="acac_p", name="ACetoacetate", compartment="p"),
+        Metabolite(id="atp_p", name="ATP", compartment="p"),
+        Metabolite(id="adp_p", name="ADP", compartment="p"),
+        Metabolite(id="pi_p", name="Orhtophosphate", compartment="p"),
+    ])
+    model.add_reactions([Reaction("1"),
+                         Reaction("2"),
+                         Reaction("3"),
+                         Reaction("4"),
+                         Reaction("5"),
+                         Reaction("6"),
+                         Reaction("7"),
+                         Reaction("8"),
+                         Reaction("9"),
+                         Reaction("10")
+                         ])
+    # Add the reactions
+    # Add the stoichiometry
+    model.reactions[0].build_reaction_from_string("fum_c <--> male_c")
+    model.reactions[1].build_reaction_from_string("2obut_c <--> acac_c")
+    model.reactions[2].build_reaction_from_string("fum_c + atp_c <--> 2obut_c + adp_c + pi_c")
+    model.reactions[3].build_reaction_from_string("acac_c + atp_c <--> male_c + adp_c + pi_c")
+
+    model.reactions[4].build_reaction_from_string("fum_c <--> fum_p")
+    model.reactions[5].build_reaction_from_string("male_c <--> male_p")
+    model.reactions[6].build_reaction_from_string("2obut_c <--> 2obut_p")
+    model.reactions[7].build_reaction_from_string("acac_c <--> acac_p")
+    model.reactions[8].build_reaction_from_string("acac_c <--> acac_p")
+    model.reactions[9].build_reaction_from_string("pi_c <--> pi_p")
+    # Boundary reactions
+    model.add_boundary(model.metabolites.get_by_id("fum_p"), type="sink")
+    model.add_boundary(model.metabolites.get_by_id("male_p"), type="exchange")
+    # Make the compartment info
+    # Add the KEGG ids
+    model.metabolites[0].annotation = {"kegg.compound": "C00122"}
+    model.metabolites[1].annotation = {"kegg.compound": "C01384"}
+    model.metabolites[2].annotation = {"kegg.compound": "C00109"}
+    model.metabolites[3].annotation = {"kegg.compound": "C00164"}
+    model.metabolites[4].annotation = {"kegg.compound": "C00002"}
+    model.metabolites[5].annotation = {"kegg.compound": "C00008"}
+    model.metabolites[6].annotation = {"kegg.compound": "C00009"}
+
+    model.metabolites[7].annotation = {"kegg.compound": "C00122"}
+    model.metabolites[8].annotation = {"kegg.compound": "C01384"}
+    model.metabolites[9].annotation = {"kegg.compound": "C00109"}
+    model.metabolites[10].annotation = {"kegg.compound": "C00164"}
+    model.metabolites[11].annotation = {"kegg.compound": "C00002"}
+    model.metabolites[12].annotation = {"kegg.compound": "C00008"}
+    model.metabolites[13].annotation = {"kegg.compound": "C00009"}
+    model.compartment_conditions = pd.DataFrame([[8.0, 0.5, 298.15, 5.0],
+                                                 [6.5, 0.1, 298.15, 0.2]],
+                                                index=["c", "p"], columns=["pH", "I", "T", "p_mg"])
+    return model
+
+
+def make_default_compartment_conditions(model):
+    compartment_conditions = pd.DataFrame(index=model.compartments, columns=["pH", "I", "T", "p_mg"])
+    for compartment in model.compartments.keys():
+        compartment_conditions.loc[compartment] = [cc.p_h.m_as(""), cc.ionic_strength.m_as("M"),
+                                                   cc.temperature.m_as("K"), cc.p_mg.m_as("")]
+    return compartment_conditions
+
+
+def gen_random_log_concs(model):
+    np.random.seed(0)
+    n_mets = len(model.metabolites)
+    locs = np.full(n_mets, DEFAULT_MET_CONC_MEAN)
+    scales = np.full(n_mets, DEFAULT_MET_CONC_SCALE)
+    return np.random.normal(locs, scales), np.full(n_mets, DEFAULT_MET_CONC_SCALE)

@@ -95,11 +95,11 @@ def check_fluxes(S, b, c, conc_x, dgf, e, exchange_rxns, num_rxns, s_c, s_x, x):
     assert all(S @ test_v < 1e-10)
 
 
-def find_params(test_dir):
+def find_params(temp_dir):
     """ Make a dataframe filled with samples of model parameters that have reasonable values"""
     # Now write the measurements to file
-    result_dir = test_dir / "results"
-    S = pd.read_csv(test_dir / "stoichiometry.csv", index_col=0)
+    result_dir = temp_dir / "results"
+    S = pd.read_csv(temp_dir / "stoichiometry.csv", index_col=0)
     exchange_rxns = S.columns.str.contains("SK_") | S.columns.str.contains("EX_")
     # Get the free and fixed fluxes
     n_internal = (~exchange_rxns).sum()
@@ -107,7 +107,7 @@ def find_params(test_dir):
     s_c = get_s_c(S, np.ones(n_internal), np.ones(n_internal), exchange_rxns)
     free_vars, _ = get_free_fluxes(np.flip(s_c, axis=1))
     free_vars = np.flip(free_vars)
-    dgf = pd.read_csv(test_dir / "priors.csv", index_col=1)["loc"]
+    dgf = pd.read_csv(temp_dir / "priors.csv", index_col=1)["loc"]
     exchange_rxns = S.columns.str.contains("SK_") | S.columns.str.contains("EX_")
     n_internal = (~exchange_rxns).sum()
     params = []
@@ -162,10 +162,10 @@ def sym_algrebra_solve(S, free_vars):
 
 if __name__ == "__main__":
     "./data/fake/simulation_study"
-    test_dir = Path(sys.argv[1])
-    print(test_dir.absolute())
-    if not test_dir.exists():
+    temp_dir = Path(sys.argv[1])
+    print(temp_dir.absolute())
+    if not temp_dir.exists():
         logger.error("The given directory doesn't exist")
         sys.exit()
-    reasonable_samples = find_params(test_dir)
-    reasonable_samples.to_csv(test_dir / "samples.csv")
+    reasonable_samples = find_params(temp_dir)
+    reasonable_samples.to_csv(temp_dir / "samples.csv")

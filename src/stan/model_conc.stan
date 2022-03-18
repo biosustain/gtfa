@@ -86,7 +86,8 @@ transformed data {
     matrix[N_reaction, N_metabolite + N_exchange] s_gamma = rep_matrix(0, N_reaction, N_metabolite + N_exchange);
     vector[N_exchange] ones = rep_vector(1, N_exchange);
     s_gamma[ix_ex_to_rxn, ix_ex_to_x] = diag_matrix(ones);
-    s_gamma[ix_internal_to_rxn, ix_met_to_x] = S'[ix_internal_to_rxn];
+    // The matrix is inverted as well because fluxes are the opposite direction to the dgr (-dgr means positive fluxes)
+    s_gamma[ix_internal_to_rxn, ix_met_to_x] = -S'[ix_internal_to_rxn];
     //// Some extra indices for convenience
     // Directly from free and fixed metabolites and exchange rxns to the x vector
     array[N_free_met_conc] int<lower=1, upper=N_x> ix_free_met_to_x = ix_free_to_x[ix_free_met_to_free];
@@ -144,7 +145,7 @@ transformed parameters {
     // Calculate the dgr
     dgr[cond] = get_dgr(dgf, log_metabolite[cond], S[:, ix_internal_to_rxn]);
     // Calculate the fluxes
-    flux[cond][ix_internal_to_rxn] = dgr[cond] .* b[cond] .* exp(log_enzyme[cond]);
+    flux[cond][ix_internal_to_rxn] = -dgr[cond] .* b[cond] .* exp(log_enzyme[cond]);
     // Add the fixed and free exchange reactions
     flux[cond][ix_ex_to_rxn] = x[cond][ix_ex_to_x];
   }

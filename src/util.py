@@ -2,6 +2,8 @@
 import itertools
 import logging
 from typing import Iterable, Tuple, Dict
+
+import cobra
 import numpy as np
 import pandas as pd
 from scipy.stats import norm
@@ -91,7 +93,7 @@ def get_99_pct_params_n(x1: float, x2: float):
     """
     return get_normal_params_from_qs(x1, x2, 0.005, 0.995)
 
-def rref(A: np.ndarray, tol: float=1.0e-12):
+def rref(A: np.ndarray, tol: float=1.0e-8):
     """
     Calculate the reduced row echelon form of a matrix.
 
@@ -101,7 +103,7 @@ def rref(A: np.ndarray, tol: float=1.0e-12):
     :return: M: The matrix in row echelon form
              jb: ?
     """
-    M = A.copy() # We don't want to modify it in place
+    M = A.copy()  # We don't want to modify it in place
     m, n = M.shape
     i, j = 0, 0
     jb = []
@@ -129,7 +131,7 @@ def rref(A: np.ndarray, tol: float=1.0e-12):
             j += 1
     return M, jb
 
-def get_free_fluxes(S: np.ndarray):
+def get_free_fluxes(S: np.ndarray, tol: float=1.0e-8):
     """
     Calculate the set of free fluxes from a stoichiometric matrix. Also returns a set of vectors for each dependent
     reaction for its calculation from the
@@ -148,21 +150,32 @@ def get_free_fluxes(S: np.ndarray):
         v[~free_cols] = fixed_fluxes
         M @ v # Confirm output vector is all near 0
     """
-    nrows, ncols = S.shape
-    rr_mat, jb = rref(S)
-    assert all([x == y for x,y in zip(jb, sorted(jb))]), "Dealing with column rearrangements is not yet implemented"
-    fixed_fluxes = np.full(ncols, False)
-    for i in range(nrows):
-        nz = np.nonzero(rr_mat[i, :])[0]
-        if len(nz) == 0:
-            break
-        # The pivot is the first nonzero element of the row
-        fixed_fluxes[nz[0]] = True
+    # Sort the matrix by the columns with the highest values to improve numerical stability
+    rr_mat, _ = rref(S, tol)
+    fixed_fluxes = rref_to_fixed(rr_mat, tol)
+    # Return the original order
+    # Determine the fixed fluxes
     free_fluxes = ~fixed_fluxes
     # Now to get the equations for the fixed fluxes from the free fluxes
     num_fixed = fixed_fluxes.sum()
     fixed_fluxes = rr_mat[:num_fixed, free_fluxes] * -1
     return free_fluxes, fixed_fluxes
+
+
+def rref_to_fixed(rr_mat, tol):
+    """
+    Calculate the fixed columns from the reduced row echelon form of a matrix.
+    """
+    nrows, ncols = rr_mat.shape
+    fixed_fluxes = np.full(ncols, False)
+    for i in range(nrows):
+        nz = np.nonzero(abs(rr_mat[i, :]) > tol)[0]
+        if len(nz) == 0:
+            break
+        # The pivot is the first nonzero element of the row
+        fixed_fluxes[nz[0]] = True
+    return fixed_fluxes
+
 
 def to_dataframe(mcmc, dims, coords):
     """ Convert the MCMC output of stan to a pandas dataframe"""
@@ -191,3 +204,22 @@ def to_dataframe(mcmc, dims, coords):
     # Reorder the levels to have the conditions then indices
     df.columns = df.columns.reorder_levels([0, 1, 3, 2])
     return df
+
+def get_smat_df(model):
+    S = cobra.util.array.create_stoichiometric_matrix(model)
+    # Convert to a pandas dataframe
+    met_ids = [met.id for met in model.metabolites]
+    rxn_ids = [rxn.id for rxn in model.reactions]
+    S_df = pd.DataFrame(S, index=met_ids, columns=rxn_ids)
+    S_df.index.name = "metabolite"
+    S_df.columns.name = "reaction"
+    return S_df
+
+
+def ind_to_mask(inds, n):
+    """
+    Convert a list of indices to a mask
+    """
+    mask = np.zeros(n, dtype=bool)
+    mask[inds] = True
+    return mask

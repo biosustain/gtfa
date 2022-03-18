@@ -23,10 +23,12 @@ DEFAULT_MET_CONC_SCALE = 1.9885
 # This still needs to be determined
 DEFAULT_ENZ_CONC_MEAN = -8.3371
 DEFAULT_ENZ_CONC_SCALE = 1.9885
-DEFAULT_EXCHANGE_MEAN = 0
-DEFAULT_EXCHANGE_SCALE = 1
+DEFAULT_EXCHANGE_MEAN = 0  # mol/gDW/h. (Was more than 0 in the data but that wouldn't make sense here)
+DEFAULT_EXCHANGE_SCALE = 0.00449  # From the (limited) exchange data in Gerosa et al. Room for improvement.
 DEFAULT_B_MEAN = 3
 DEFAULT_B_SCALE = 3
+FIXED_MIC_EPSILON = 1e-5  # The standard deviation of values that considered to have no variance
+FIXED_DGF_EPSILON = 1e-2  # The variance for dgf values that are considered to have no variance. High because of numerical issues.
 
 
 @dataclass
@@ -50,12 +52,13 @@ class IndPrior2d:
         df["measurement_type"] = measurement_type
         return df
 
+
 def extract_prior_1d(
-    parameter: str,
-    priors: pd.DataFrame,
-    coords: List[str],
-    default_loc: float,
-    default_scale: float
+        parameter: str,
+        priors: pd.DataFrame,
+        coords: List[str],
+        default_loc: float,
+        default_scale: float
 ) -> IndPrior1d:
     param_priors = priors.groupby("parameter").get_group(parameter).set_index("target_id")
     loc, scale = (
@@ -66,12 +69,12 @@ def extract_prior_1d(
 
 
 def extract_prior_2d(
-    parameter: str,
-    priors: pd.DataFrame,
-    target_coords: List[str],
-    condition_coords: List[str],
-    default_loc: float,
-    default_scale: float
+        parameter: str,
+        priors: pd.DataFrame,
+        target_coords: List[str],
+        condition_coords: List[str],
+        default_loc: float,
+        default_scale: float
 ) -> IndPrior2d:
     if parameter not in priors["parameter"].unique():
         loc, scale = (
@@ -83,12 +86,12 @@ def extract_prior_2d(
         param_priors = priors.groupby("parameter").get_group(parameter)
         loc, scale = (
             param_priors
-            .set_index(["condition_id", "target_id"])
+                .set_index(["condition_id", "target_id"])
             [col]
-            .unstack()
-            .reindex(condition_coords)
-            .reindex(target_coords, axis=1)
-            .fillna(default)
+                .unstack()
+                .reindex(condition_coords)
+                .reindex(target_coords, axis=1)
+                .fillna(default)
             for col, default in [("loc", default_loc), ("scale", default_scale)]
         )
         return IndPrior2d(parameter, loc, scale)
@@ -104,6 +107,14 @@ def get_exchange_rxns(S):
 def get_coords(S: pd.DataFrame, measurements: pd.DataFrame, priors: pd.DataFrame, order=None):
     if not type(priors) == pd.DataFrame:
         raise RuntimeError("priors must be a dataframe")
+    # Get a list of all conditions
+    measurement_conditions = measurements["condition_id"]
+    prior_conditions = priors["condition_id"][~priors["condition_id"].isna()]
+    conditions = measurement_conditions.append(prior_conditions).unique()
+    return get_coords_condition_list(S, conditions, order)
+
+
+def get_coords_condition_list(S: pd.DataFrame, conditions: [str], order=None):
     # Make sure they are protected for the regular expression
     is_exchange = get_exchange_rxns(S)
     base_ordering = S.columns[is_exchange].to_series().append(S.index.to_series())
@@ -116,8 +127,8 @@ def get_coords(S: pd.DataFrame, measurements: pd.DataFrame, priors: pd.DataFrame
     free_x_names = x_names[free_x_ind]
     fixed_x_names = x_names[~free_x_ind]
     # A list of indices for each free x
-    free_x = np.arange(1, len(free_x_ind)+1)[free_x_ind]
-    fixed_x = np.arange(1, len(free_x_ind)+1)[~free_x_ind]
+    free_x = np.arange(1, len(free_x_ind) + 1)[free_x_ind]
+    fixed_x = np.arange(1, len(free_x_ind) + 1)[~free_x_ind]
     # This is a vector with exchange reactions first followed by the metabolites
     exchange_free_ind = free_x_ind[:num_ex]
     exchange_free = exchanges[exchange_free_ind]
@@ -127,10 +138,6 @@ def get_coords(S: pd.DataFrame, measurements: pd.DataFrame, priors: pd.DataFrame
     conc_fixed = S.index[~conc_free_ind]
     reaction_ind_map = codify(S.columns)
     met_ind_map = codify(S.index)
-    # Get a list of all conditions
-    measurement_conditions = measurements["condition_id"]
-    prior_conditions = priors["condition_id"][~priors["condition_id"].isna()]
-    conditions = measurement_conditions.append(prior_conditions).unique()
     return {
         # Maps to stan indices
         "reaction_ind": reaction_ind_map,
@@ -198,12 +205,12 @@ def check_input(measurements, priors):
         raise ValueError("At least one measurement is required")
     measurements_by_type = dict(measurements.groupby("measurement_type").__iter__())
     # Check that enzyme and metabolite measurements are in log scale
-    if "enzyme" in measurements_by_type and not measurements_by_type["enzyme"]["measurement"].between(0, 1).all():
-        raise ValueError("Enzyme concentration measurements should be between 0 and 1 molar"
-                         "Are they maybe recorded as log concentrations?")
-    if "mic" in measurements_by_type and not measurements_by_type["mic"]["measurement"].between(0, 1).all():
-        raise ValueError("Metabolite concentration measurements should be between 0 and 1 molar. "
-                         "Are they maybe recorded as log concentrations?")
+    if "enzyme" in measurements_by_type and measurements_by_type["enzyme"]["measurement"].between(0, 1).all():
+        raise ValueError("Enazyme log concentration measurements should be in the range of ~-13 to -5."
+                         "Are they maybe recorded as regular concentrations?")
+    if "mic" in measurements_by_type and measurements_by_type["mic"]["measurement"].between(0, 1).all():
+        raise ValueError("Metabolite log concentration measurements should be in the range of ~-13 to -5."
+                         "Are they maybe recorded as regular concentrations?")
     priors_by_type = dict(priors.groupby("parameter").__iter__())
     # Check that the lognormal priors are in the correct range
     if ("enzyme" in priors_by_type and not priors_by_type["enzyme"]["loc"].between(-20, 0).all()) \
@@ -213,12 +220,12 @@ def check_input(measurements, priors):
 
 
 def get_stan_input(
-    measurements: pd.DataFrame,
-    S: pd.DataFrame,
-    priors: pd.DataFrame,
-    priors_cov: pd.DataFrame,
-    likelihood: bool,
-    order=None) -> Dict:
+        measurements: pd.DataFrame,
+        S: pd.DataFrame,
+        priors: pd.DataFrame,
+        priors_cov: pd.DataFrame,
+        likelihood: bool,
+        order=None) -> Dict:
     """Get an input to cmdstanpy.CmdStanModel.sample.
 
     :param measurements: a pandas DataFrame whose rows represent measurements
@@ -230,12 +237,25 @@ def get_stan_input(
     check_input(measurements, priors)
     coords = get_coords(S, measurements, priors, order)
     measurements_by_type = group_measurement_types(likelihood, measurements)
+    # Add a small constant for concentration values that should be fixed
+    measurements_by_type["mic"].loc[measurements_by_type["mic"]["error_scale"] == 0, "error_scale"] = FIXED_MIC_EPSILON
+    # Add a small constant for dgf values with no variance
+    zero_cols = ~priors_cov.any()
+    zero_rows = ~priors_cov.any(axis=1)
+    assert (zero_cols == zero_rows).all(), "The covariance matrix should be symmetric"
+    priors_cov.loc[zero_cols, zero_cols] = np.diag(np.full(zero_cols.sum(), FIXED_DGF_EPSILON))
+    assert np.linalg.matrix_rank(priors_cov) == len(priors_cov), "The covariance matrix should be full rank"
+    # Transform into measurements for the model
     free_exchange = get_name_ordered_overlap(coords, "reaction_ind", ["exchange", "free_x_names"])
     free_met_conc = get_name_ordered_overlap(coords, "metabolite_ind", ["metabolite", "free_x_names"])
-    prior_b = extract_prior_2d("b", priors, coords["internal_names"], coords["condition"], DEFAULT_B_MEAN, DEFAULT_B_SCALE)
-    prior_enzyme = extract_prior_2d("internal_names", priors, coords["internal_names"], coords["condition"], DEFAULT_ENZ_CONC_MEAN, DEFAULT_ENZ_CONC_SCALE)
-    prior_met_conc_free = extract_prior_2d("metabolite", priors, free_met_conc, coords["condition"], DEFAULT_MET_CONC_MEAN, DEFAULT_MET_CONC_SCALE)
-    prior_exchange_free = extract_prior_2d("exchange", priors, free_exchange, coords["condition"], DEFAULT_EXCHANGE_MEAN, DEFAULT_EXCHANGE_SCALE)
+    prior_b = extract_prior_2d("b", priors, coords["internal_names"], coords["condition"], DEFAULT_B_MEAN,
+                               DEFAULT_B_SCALE)
+    prior_enzyme = extract_prior_2d("internal_names", priors, coords["internal_names"], coords["condition"],
+                                    DEFAULT_ENZ_CONC_MEAN, DEFAULT_ENZ_CONC_SCALE)
+    prior_met_conc_free = extract_prior_2d("metabolite", priors, free_met_conc, coords["condition"],
+                                           DEFAULT_MET_CONC_MEAN, DEFAULT_MET_CONC_SCALE)
+    prior_exchange_free = extract_prior_2d("exchange", priors, free_exchange, coords["condition"],
+                                           DEFAULT_EXCHANGE_MEAN, DEFAULT_EXCHANGE_SCALE)
     # Add the fixed priors to the measurements
     fixed_exchange_prior_df, fixed_met_prior_df = fixed_prior_to_measurements(coords, priors)
     measurements_by_type["mic"] = measurements_by_type["mic"].append(fixed_met_prior_df)
@@ -289,14 +309,14 @@ def get_stan_input(
         "condition_y_flux": measurements_by_type["flux"]["condition_id"].map(
             codify(coords["condition"])).values.tolist(),
         # Concentrations given on a log scale
-        "y_enzyme": np.log(measurements_by_type["enzyme"]["measurement"]).values.tolist(),
+        "y_enzyme": measurements_by_type["enzyme"]["measurement"].values.tolist(),
         "sigma_enzyme": measurements_by_type["enzyme"]["error_scale"].values.tolist(),
         "internal_y_enzyme": measurements_by_type["enzyme"]["target_id"].map(
             codify(coords["internal_names"])).values.tolist(),
         "condition_y_enzyme": measurements_by_type["enzyme"]["condition_id"].map(
             codify(coords["condition"])).values.tolist(),
         # Concentrations given on a log scale
-        "y_metabolite": np.log(measurements_by_type["mic"]["measurement"]).values.tolist(),
+        "y_metabolite": measurements_by_type["mic"]["measurement"].values.tolist(),
         "sigma_metabolite": measurements_by_type["mic"]["error_scale"].values.tolist(),
         "metabolite_y_metabolite": measurements_by_type["mic"]["target_id"].map(
             codify(coords["metabolite"])).values.tolist(),
@@ -342,7 +362,6 @@ def fixed_prior_to_measurements(coords, priors):
     # Expand the IndPrior2d to the pandas dataframe format
     fixed_met_prior_df = prior_met_conc_fixed.to_dataframe("mic").rename(
         columns={"parameter": "target_id", "loc": "measurement", "scale": "error_scale"})
-    fixed_met_prior_df["measurement"] = np.exp(fixed_met_prior_df["measurement"])
     fixed_exchange_prior_df = prior_exchange_fixed.to_dataframe("flux").rename(
         columns={"parameter": "target_id", "loc": "measurement", "scale": "error_scale"})
     return fixed_exchange_prior_df, fixed_met_prior_df

@@ -1,17 +1,17 @@
-# Change files here during the development process
-name = "small_test"
+# A model that fits somewhat to ensure reasonable samples
+name = "small_test_full"
 stan_file = "../src/stan/model_conc.stan"
 data_folder = "temp_dir"
-likelihood = false
+likelihood = true
 devel = false
 analyse = false
 [sample_kwargs]
-chains = 2
+chains = 1
 parallel_chains = 2
 sig_figs = 18
 show_progress = true
-iter_warmup = 10
-iter_sampling = 10
+iter_warmup = 1000
+iter_sampling = 100
 max_treedepth = 12
 adapt_delta = 0.90
 refresh = 1

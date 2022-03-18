@@ -1,3 +1,4 @@
+import importlib
 import logging
 import os
 import shutil
@@ -12,16 +13,17 @@ from src.model_configuration import load_model_configuration
 RESULTS_DIR = Path(__file__).parent / "results"
 logger = logging.getLogger()
 
+
 def setup_logging(config):
     FORMAT = '%(asctime)s | %(name)s | %(levelname)s | %(message)s'
     HANDLERS = [logging.FileHandler(config.result_dir / "out.log"), logging.StreamHandler()]
+    importlib.reload(logging)  # Equilibrator steals the root logger somehow
     if config.devel & config.verbose:
         logging.basicConfig(level=logging.DEBUG, format=FORMAT, handlers=HANDLERS)
     elif config.verbose | config.devel:
         logging.basicConfig(level=logging.INFO, format=FORMAT, handlers=HANDLERS)
     else:
         logging.basicConfig(level=logging.WARNING, format=FORMAT, handlers=HANDLERS)
-    #
 
 
 def check_input(config_files):
@@ -53,7 +55,6 @@ def run_config(config):
     # Generate the analysis files
     if config.analyse:
         analyse(config)
-
 
 
 if __name__ == "__main__":
