@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pandas as pd
 import pytest
+import requests
 from cobra.io import load_model
 
 from src import model_conversion
@@ -27,6 +28,12 @@ def temp_dir():
     temp_dir.mkdir()
     yield temp_dir
     shutil.rmtree(temp_dir)
+
+
+# @pytest.fixture(params=['ecoli_model', 'model_small', "model_small_rankdef", "model_small_rankdef_thermo", "small_model_irreversible"])
+# def model(request):
+#     print('TEst')
+#     return request.getfixturevalue(request.param)
 
 
 @pytest.fixture
