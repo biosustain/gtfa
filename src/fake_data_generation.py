@@ -110,9 +110,12 @@ def generate_data(stan_input: dict, S_df: pd.DataFrame, samples_per_param=100, n
     parameter_measurements = []
     num_params_sampled = 0
     logger.info("Generating parameter samples")
+    # The dgf params are shared across all conditions and must be sampled first
+    dgf = np.random.multivariate_normal(stan_input["prior_dgf_mean"], stan_input["prior_dgf_cov"],
+                                        check_valid="raise")
     while num_params_sampled < num_conditions:
         logger.info(f"{num_params_sampled} of {num_conditions} conditions sampled")
-        b, dgf, exchange_free, log_enzyme, log_met_conc_free = sample_free_params(stan_input)
+        b, exchange_free, log_enzyme, log_met_conc_free = sample_free_params(stan_input)
         # Generate the data
         # Make the S_m matrix for solving the system of equations
         dgr, flux, log_met_conc = sample_fixed_params(S, S_v_base, b, dgf, exchange_free, exchange_rxn_mask,
@@ -226,15 +229,13 @@ def sample_fixed_params(S, S_v_base, b, dgf, exchange_free, exchange_rxn_mask, e
 def sample_free_params(stan_input):
     # Assumes a single condition
     # NOTE: It might be worth checking here that the priors across all conditions are the same
-    dgf = np.random.multivariate_normal(stan_input["prior_dgf_mean"], stan_input["prior_dgf_cov"],
-                                        check_valid="raise")
     exchange_free = np.random.normal(stan_input["prior_exchange_free"][0][0],
                                      stan_input["prior_exchange_free"][1][0])
     b = np.random.lognormal(stan_input["prior_b"][0][0], stan_input["prior_b"][1][0])
     log_enzyme = np.random.normal(stan_input["prior_enzyme"][0][0], stan_input["prior_enzyme"][1][0])
     log_met_conc_free = np.random.normal(stan_input["prior_free_met_conc"][0][0],
                                             stan_input["prior_free_met_conc"][1][0])
-    return b, dgf, exchange_free, log_enzyme, log_met_conc_free
+    return b, exchange_free, log_enzyme, log_met_conc_free
 
 
 def generate_data_and_config(config_path: Path, samples_per_param=10, num_conditions=10, measured_params=None, bounds=None):
