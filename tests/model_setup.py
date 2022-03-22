@@ -119,7 +119,7 @@ def build_small_test_model_rankdef_thermo():
     model.reactions[0].build_reaction_from_string("fum_c <--> male_c")
     model.reactions[1].build_reaction_from_string("2obut_c <--> acac_c")
     model.reactions[2].build_reaction_from_string("fum_c + atp_c <--> 2obut_c + adp_c + pi_c")
-    model.reactions[3].build_reaction_from_string("acac_c + atp_c <--> male_c + adp_c + pi_c")
+    model.reactions[3].build_reaction_from_string("male_c + atp_c <-->  acac_c + adp_c + pi_c")
     # Boundary reactions
     model.add_boundary(model.metabolites.get_by_id("fum_c"), type="sink")
     model.add_boundary(model.metabolites.get_by_id("male_c"), type="exchange")
