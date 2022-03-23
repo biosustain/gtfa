@@ -79,7 +79,9 @@ RT = 0.008314 * 298.15
 base_dir = Path(__file__).parent.parent
 logger = logging.getLogger(__name__)
 
-def generate_data(stan_input: dict, S_df: pd.DataFrame, samples_per_param=100, num_conditions=10, seed=42, bounds=None) -> pd.DataFrame:
+
+def generate_data(stan_input: dict, S_df: pd.DataFrame, samples_per_param=100, num_conditions=10, seed=42,
+                  bounds=None) -> pd.DataFrame:
     """Simulate data from the stan input dictionary"""
     # Set the numpy seed
     np.random.seed(seed)
@@ -102,7 +104,7 @@ def generate_data(stan_input: dict, S_df: pd.DataFrame, samples_per_param=100, n
     free_row_mask = ind_to_mask(free_row - 1, nmet)
     S_v_base = np.zeros((nrxn, nex + nmet))
     exchange_entries = np.logical_and.outer(exchange_rxn_mask, exchange_x_mask)
-    S_v_base[exchange_entries] = np.identity(nex).flatten() # Needs to be 1d for some reason
+    S_v_base[exchange_entries] = np.identity(nex).flatten()  # Needs to be 1d for some reason
     # The negative here ensures that negative dgr produces positive fluxes
     internal_entries = np.logical_and.outer(~exchange_rxn_mask, ~exchange_x_mask)
     S_v_base[internal_entries] = -S[:, ~exchange_rxn_mask].T.flatten()
@@ -120,8 +122,9 @@ def generate_data(stan_input: dict, S_df: pd.DataFrame, samples_per_param=100, n
         # Make the S_m matrix for solving the system of equations
         dgr, flux, log_met_conc = sample_fixed_params(S, S_v_base, b, dgf, exchange_free, exchange_rxn_mask,
                                                       exchange_x_mask, fixed_met_mask, fixed_x_mask, free_met_mask,
-                                                      free_x_mask, log_enzyme, log_met_conc_free, free_row_mask, nmet, nx)
-        param_dict = {"dgr": dgr, "flux": flux, "log_met_conc": log_met_conc, "log_enzyme": log_enzyme, "dgf": dgf}
+                                                      free_x_mask, log_enzyme, log_met_conc_free, free_row_mask, nmet,
+                                                      nx)
+        param_dict = {"b": b, "dgr": dgr, "flux": flux, "log_met_conc": log_met_conc, "log_enzyme": log_enzyme, "dgf": dgf}
         if bounds is not None and check_out_of_bounds(bounds, param_dict):
             continue
         # Sample measurements from these parameters
@@ -169,7 +172,8 @@ def check_out_of_bounds(var_bounds: dict, param_dict: dict):
             # Find values that fit within bounds
             in_bounds = in_bounds | (var_vals > bound[0]) & (var_vals < bound[1])
         if not np.all(in_bounds):
-            logger.info(f"Sample rejected because {bound_var} with values {var_vals} was out of bounds: {var_bounds.items()}")
+            logger.info(
+                f"Sample rejected because {bound_var} with values {var_vals} was out of bounds: {bounds}")
             return True
     return False
 
@@ -206,10 +210,12 @@ def sample_measurements(flux, log_enzyme, log_met_conc, samples_per_param):
 
 # NOTE: Could probably be refactored
 def sample_fixed_params(S, S_v_base, b, dgf, exchange_free, exchange_rxn_mask, exchange_x_mask, fixed_met_mask,
-                        fixed_x_mask, free_met_mask, free_x_mask, log_enzyme, log_met_conc_free, free_row_mask, nmet, nx):
+                        fixed_x_mask, free_met_mask, free_x_mask, log_enzyme, log_met_conc_free, free_row_mask, nmet,
+                        nx):
     S_v = S_v_base.copy()
     # Elementwise multiply by be
-    S_v[~exchange_rxn_mask] *= (np.exp(log_enzyme[:, np.newaxis]) * b[:, np.newaxis]) # These need to be column vectors for numpy broadcasting
+    S_v[~exchange_rxn_mask] *= (np.exp(log_enzyme[:, np.newaxis]) * b[:,
+                                                                    np.newaxis])  # These need to be column vectors for numpy broadcasting
     S_m = S @ S_v
     x = np.zeros(nx)
     x[free_x_mask & ~exchange_x_mask] = dgf[free_met_mask] + RT * log_met_conc_free
@@ -231,19 +237,22 @@ def sample_fixed_params(S, S_v_base, b, dgf, exchange_free, exchange_rxn_mask, e
     return dgr, flux, log_met_conc
 
 
-def sample_free_params(stan_input):
+def sample_free_params(stan_input, scale_divisor=5):
+    # Because we want a parameter where all values correspond to the priors we need to reduce the variance so that SOME
+    # samples are accepted
     # Assumes a single condition
     # NOTE: It might be worth checking here that the priors across all conditions are the same
     exchange_free = np.random.normal(stan_input["prior_exchange_free"][0][0],
-                                     stan_input["prior_exchange_free"][1][0])
-    b = np.random.lognormal(stan_input["prior_b"][0][0], stan_input["prior_b"][1][0])
-    log_enzyme = np.random.normal(stan_input["prior_enzyme"][0][0], stan_input["prior_enzyme"][1][0])
+                                     np.array(stan_input["prior_exchange_free"][1][0])/scale_divisor)
+    b = np.random.lognormal(stan_input["prior_b"][0][0], np.array(stan_input["prior_b"][1][0])/scale_divisor)
+    log_enzyme = np.random.normal(stan_input["prior_enzyme"][0][0], np.array(stan_input["prior_enzyme"][1][0])/scale_divisor)
     log_met_conc_free = np.random.normal(stan_input["prior_free_met_conc"][0][0],
-                                            stan_input["prior_free_met_conc"][1][0])
+                                         np.array(stan_input["prior_free_met_conc"][1][0])/scale_divisor)
     return b, exchange_free, log_enzyme, log_met_conc_free
 
 
-def generate_data_and_config(config_path: Path, samples_per_param=10, num_conditions=10, measured_params=None, bounds=None):
+def generate_data_and_config(config_path: Path, samples_per_param=10, num_conditions=10, measured_params=None,
+                             bounds=None):
     """
     Generate fake data for a given existing configuration using the priors.
     """
@@ -257,12 +266,15 @@ def generate_data_and_config(config_path: Path, samples_per_param=10, num_condit
     # Load the stan input with the original data (we won't use any of the measurements, just the priors)
     stan_input = stan_input_from_config(new_config)
     data_df = generate_data(stan_input, S, samples_per_param, num_conditions, bounds=bounds)
+    # Save the parameters as well
+    data_df["P"].loc[0].to_csv(new_config.data_folder / "true_params.csv")  # Only need the first instance of each param
     # Select only the measured columns
     write_measurements(data_df, measured_params, new_config.data_folder, num_conditions, samples_per_param)
     # Write new config file
     (config_dir / "synthetic").mkdir(exist_ok=True)
     new_config.to_toml(config_dir / "synthetic" / (new_config.name + ".toml"))
     return new_config, data_df
+
 
 def switch_config(base_config, measured_params, num_conditions, samples_per_param):
     # Deterine the new directories
@@ -301,8 +313,8 @@ def make_model_name(measured_params, config, num_conditions, samples_per_param):
 
 if __name__ == "__main__":
     bounds = {"met_conc": (-12, -4),
-              "flux": (-20, 20)}
+              "flux": (-20, 20),
+              "b": (0, 8000)}
     generate_data_and_config(
         Path("/home/jason/Documents/Uni/thesis/gtfa/model_configurations/toy_likelihood_conc_single.toml"),
         samples_per_param=3, num_conditions=1, bounds=bounds)
-
