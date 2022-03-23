@@ -114,9 +114,9 @@ transformed parameters {
   array[N_condition] vector[N_x] x;
   // Recenter the dgf
   vector[N_metabolite] dgf = dgf_ctd + prior_dgf_mean;
-  real RT = 0.008314 * 298.15;
   //
   for (cond in 1:N_condition){
+    real RT = 0.008314 * 298.15;
     vector[N_metabolite] rhs;
     matrix[N_metabolite, N_reaction] mod_s;
     matrix[N_metabolite, N_metabolite + N_exchange] s_c;
