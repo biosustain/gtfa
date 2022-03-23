@@ -121,7 +121,8 @@ def generate_data(stan_input: dict, S_df: pd.DataFrame, samples_per_param=100, n
         dgr, flux, log_met_conc = sample_fixed_params(S, S_v_base, b, dgf, exchange_free, exchange_rxn_mask,
                                                       exchange_x_mask, fixed_met_mask, fixed_x_mask, free_met_mask,
                                                       free_x_mask, log_enzyme, log_met_conc_free, free_row_mask, nmet, nx)
-        if bounds is not None and check_out_of_bounds(b, bounds, dgf, dgr, flux, log_enzyme, log_met_conc):
+        param_dict = {"dgr": dgr, "flux": flux, "log_met_conc": log_met_conc, "log_enzyme": log_enzyme, "dgf": dgf}
+        if bounds is not None and check_out_of_bounds(bounds, param_dict):
             continue
         # Sample measurements from these parameters
         enzyme_measurements, flux_measurements, log_met_conc_measurements = sample_measurements(flux, log_enzyme,
@@ -146,25 +147,29 @@ def generate_data(stan_input: dict, S_df: pd.DataFrame, samples_per_param=100, n
     return full_measurements_df
 
 
-def check_out_of_bounds(b, bounds, dgf, dgr, flux, log_enzyme, log_met_conc):
+def check_out_of_bounds(var_bounds: dict, param_dict: dict):
+    # Put all the bounds in the right format
+    for k, v in var_bounds.items():
+        # This should be iterable with elements that are tuples of length 2
+        try:
+            right_length = len(v[0]) == 2
+            not_a_list = False
+        except TypeError:
+            right_length = len(v) == 2
+            not_a_list = True
+        if not right_length:
+            raise ValueError(f"Bounds for {k} must be tuples of length 2")
+        if not_a_list:
+            var_bounds[k] = [v]
     # Check that the samples are within the bounds
-    if "b" in bounds:
-        if (b < bounds["b"][0]).any() or (b > bounds["b"][1]).any():
-            return True
-    if "dgf" in bounds:
-        if (dgf < bounds["dgf"][0]).any() or (dgf > bounds["dgf"][1]).any():
-            return True
-    if "dgr" in bounds:
-        if (dgr < bounds["dgr"][0]).any() or (dgr > bounds["dgr"][1]).any():
-            return True
-    if "flux" in bounds:
-        if (flux < bounds["flux"][0]).any() or (flux > bounds["flux"][1]).any():
-            return True
-    if "enzyme" in bounds:
-        if (log_enzyme < bounds["enzyme"][0]).any() or (log_enzyme > bounds["enzyme"][1]).any():
-            return True
-    if "met_conc" in bounds:
-        if (log_met_conc < bounds["met_conc"][0]).any() or (log_met_conc > bounds["met_conc"][1]).any():
+    for bound_var, bounds in var_bounds.items():
+        var_vals = param_dict[bound_var]
+        in_bounds = np.full(var_vals.shape, False)
+        for bound in bounds:
+            # Find values that fit within bounds
+            in_bounds = in_bounds | (var_vals > bound[0]) & (var_vals < bound[1])
+        if not np.all(in_bounds):
+            logger.info(f"Sample rejected because {bound_var} with values {var_vals} was out of bounds: {var_bounds.items()}")
             return True
     return False
 
@@ -257,7 +262,7 @@ def generate_data_and_config(config_path: Path, samples_per_param=10, num_condit
     # Write new config file
     (config_dir / "synthetic").mkdir(exist_ok=True)
     new_config.to_toml(config_dir / "synthetic" / (new_config.name + ".toml"))
-    return new_config
+    return new_config, data_df
 
 def switch_config(base_config, measured_params, num_conditions, samples_per_param):
     # Deterine the new directories
@@ -266,6 +271,7 @@ def switch_config(base_config, measured_params, num_conditions, samples_per_para
     new_config.data_folder = base_dir / "data" / "fake" / new_config.name
     new_config.data_folder.mkdir(parents=True, exist_ok=True)
     new_config.result_dir = base_dir / "results" / new_config.name
+    new_config.data_folder.mkdir(parents=True, exist_ok=True)
     # Copy the data folder across
     for f in base_config.data_folder.iterdir():
         if not f.is_dir():
@@ -298,5 +304,5 @@ if __name__ == "__main__":
               "flux": (-20, 20)}
     generate_data_and_config(
         Path("/home/jason/Documents/Uni/thesis/gtfa/model_configurations/toy_likelihood_conc_single.toml"),
-        samples_per_param=2, num_conditions=5, bounds=bounds)
+        samples_per_param=3, num_conditions=1, bounds=bounds)
 
