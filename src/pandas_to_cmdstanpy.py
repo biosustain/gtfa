@@ -23,10 +23,10 @@ DEFAULT_MET_CONC_SCALE = 1.9885
 # This still needs to be determined
 DEFAULT_ENZ_CONC_MEAN = -8.3371
 DEFAULT_ENZ_CONC_SCALE = 1.9885
-DEFAULT_EXCHANGE_MEAN = 0  # mol/gDW/h. (Was more than 0 in the data but that wouldn't make sense here)
-DEFAULT_EXCHANGE_SCALE = 0.00449  # From the (limited) exchange data in Gerosa et al. Room for improvement.
-DEFAULT_B_MEAN = 3
-DEFAULT_B_SCALE = 3
+DEFAULT_EXCHANGE_MEAN = 0  # mmol/l/s. (Was more than 0 in the data but that wouldn't make sense here)
+DEFAULT_EXCHANGE_SCALE = 37.1772  # From the (limited) exchange data in Gerosa et al. Room for improvement.
+DEFAULT_B_MEAN = 7
+DEFAULT_B_SCALE = 4
 FIXED_MIC_EPSILON = 1e-5  # The standard deviation of values that considered to have no variance
 FIXED_DGF_EPSILON = 1e-2  # The variance for dgf values that are considered to have no variance. High because of numerical issues.
 
