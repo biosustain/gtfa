@@ -8,8 +8,7 @@ from pathlib import Path
 from typing import List
 import arviz as az
 import numpy as np
-from cmdstanpy import CmdStanModel
-from cmdstanpy.utils import jsondump
+from cmdstanpy import CmdStanModel, write_stan_json
 import pandas as pd
 from src.model_configuration import ModelConfiguration
 from src.pandas_to_cmdstanpy import get_stan_input
@@ -41,7 +40,7 @@ def generate_samples(config: ModelConfiguration) -> None:
     json_file = config.result_dir / "input_data.json"
     stan_input = stan_input_from_config(config)
     logger.info(f"Writing input data to {json_file}")
-    jsondump(str(json_file), stan_input)
+    write_stan_json(str(json_file), stan_input)
     mcmc = run_stan(config)
     # Write the files
     measurements = pd.read_csv(config.data_folder / "measurements.csv")
