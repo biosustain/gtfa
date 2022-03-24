@@ -49,8 +49,9 @@ def sample_and_show(config_path: Path, samples_per_param=3, num_conditions=1, bo
     # Pair plots
     plot_pairs_true_params(data, rename, true_params, ["dgf", "log_metabolite"], 1)
     plt.show()
-    plot_pairs_true_params(data, rename, true_params, ["dgf", "log_metabolite"], 2)
-    plt.show()
+    if num_conditions > 1:
+        plot_pairs_true_params(data, rename, true_params, ["dgf", "log_metabolite"], 2)
+        plt.show()
     plot_pairs_true_params(data, rename, true_params, ["dgr", "flux"], 1)
     plt.show()
     plot_pairs_true_params(data, rename, true_params, ["dgr", "dgf"], 1)
