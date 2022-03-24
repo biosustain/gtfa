@@ -23,18 +23,16 @@ def sample_and_show(config_path: Path, samples_per_param=3, num_conditions=1, bo
     new_config, sim_data = generate_data_and_config(config_path, samples_per_param=samples_per_param,
                                                     num_conditions=num_conditions, bounds=bounds, cache=cache)
     perform_sampling = False
-    if cache and not new_config.result_dir.exists():
-        perform_sampling = True
-        logger.info("No samples found, generating new samples")
-        # Make the results dir
-        new_config.result_dir.mkdir()
-    if not cache and new_config.result_dir.exists():
-        # Make the results dir
-        shutil.rmtree(new_config.result_dir)
-        # Make an empty folder
-        new_config.result_dir.mkdir()
+    if cache:
+        if not (new_config.result_dir / "infd.nc").exists():
+            logger.info("No samples found, generating new samples")
+            perform_sampling = True
+    else:
         perform_sampling = True
     if perform_sampling:
+        # Remake the results dir
+        shutil.rmtree(new_config.result_dir)
+        new_config.result_dir.mkdir()
         generate_samples(new_config)
     else:
         logger.info("Using cached samples")
@@ -120,7 +118,7 @@ def analyse(config):
 if __name__ == "__main__":
     # Delete the directory
     logging.basicConfig(level=logging.INFO)
-    samples_per_param = 100
+    samples_per_param = 99
     num_conditions = 1
     cache = True
     # shutil.rmtree(

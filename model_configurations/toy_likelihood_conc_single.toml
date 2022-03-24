@@ -7,12 +7,12 @@ devel = false
 save_plot = true
 
 [sample_kwargs]
-chains = 2
+chains = 4
 parallel_chains = 4
 sig_figs = 6
 show_progress = true
-iter_warmup = 4000
-iter_sampling = 1000
+iter_warmup = 2000
+iter_sampling = 200
 max_treedepth = 12
 adapt_delta = 0.9
 refresh = 1
