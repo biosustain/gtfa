@@ -1,0 +1,12 @@
+measurement_type,target_id,condition_id,measurement,error_scale
+mic,g6p,condition_1,-6,2
+mic,f6p,condition_1,-8,2
+mic,g1p,condition_1,-7,2
+mic,f1p,condition_1,-4,2
+flux,C,condition_1,1.4,1
+flux,E,condition_1,0.2,1
+enzyme,A,condition_1,-4,3
+enzyme,B,condition_1,-5,3
+enzyme,C,condition_1,-3,3
+enzyme,D,condition_1,-4,3
+enzyme,E,condition_1,-2,3
