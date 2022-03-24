@@ -276,9 +276,6 @@ def generate_data_and_config(config_path: Path, samples_per_param=10, num_condit
         if new_config.data_folder.exists():
             logger.info("Removing existing data folder")
             shutil.rmtree(new_config.data_folder)
-        if new_config.result_dir.exists():
-            logger.info("Removing existing result folder")
-            shutil.rmtree(new_config.result_dir)
         skip_sampling = False
     if not skip_sampling:
         make_data_folder(base_config, new_config)

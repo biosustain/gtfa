@@ -31,17 +31,48 @@ def sample_and_show(config_path: Path, samples_per_param=3, num_conditions=1, bo
         perform_sampling = True
     if perform_sampling:
         # Remake the results dir
-        shutil.rmtree(new_config.result_dir)
+        if new_config.result_dir.exists():
+            shutil.rmtree(new_config.result_dir)
+            logger.info("Removed existing results dir")
         new_config.result_dir.mkdir()
         generate_samples(new_config)
     else:
         logger.info("Using cached samples")
     # Display the simulated samples
     data = az.from_netcdf(new_config.result_dir / "infd.nc")
-    true_params = sim_data.loc[[0], "P"]
+    true_params = sim_data.loc[[0], "P"]  # Only the first sample of each param set is necessary
     rename = {"log_metabolite": "mic",
               "log_enzyme": "enzyme"}  # Convert between stan data names and generated data names
     vars_to_plot = ["dgf", "flux", "log_metabolite", "log_enzyme", "b", "dgr"]
+    plot_density_true_params(data, num_conditions, rename, sim_data, true_params, vars_to_plot)
+    plt.show()
+    # Pair plots
+    plot_pairs_true_params(data, rename, true_params, ["dgf", "log_metabolite"], 1)
+    plt.show()
+    plot_pairs_true_params(data, rename, true_params, ["dgf", "log_metabolite"], 2)
+    plt.show()
+    plot_pairs_true_params(data, rename, true_params, ["dgr", "flux"], 1)
+    plt.show()
+    plot_pairs_true_params(data, rename, true_params, ["dgr", "dgf"], 1)
+    plt.show()
+
+
+def plot_pairs_true_params(data, rename, true_params, vars_to_plot, condition_num, coords={}):
+    """
+    Regular pair plots but with lines showing the true parameters
+    """
+    axs = az.plot_pair(data, var_names=vars_to_plot, coords={"condition": f"condition_{condition_num}"})
+    sim_names = [rename.get(v, v) for v in vars_to_plot]
+    true_vals = true_params[sim_names].iloc[condition_num-1]
+    for i in range(len(axs)):
+        for j in range(i+1):
+            axs[i][j].axvline(true_vals.iloc[j], color="black", linestyle="--")
+            # The first row corresponds to the second entry (no need to plot the diagonal)
+            axs[i][j].axhline(true_vals.iloc[i+1], color="black", linestyle="--")
+    plt.show()
+
+# NOTE: Can refactor to remove sim_data
+def plot_density_true_params(data, num_conditions, rename, sim_data, true_params, vars_to_plot):
     n_params_to_plot = len(true_params[[rename.get(v, v) for v in vars_to_plot]].columns)
     total_num_plots = n_params_to_plot * num_conditions
     # Remove the extra dgf plots if it is to be plotted
@@ -55,7 +86,7 @@ def sample_and_show(config_path: Path, samples_per_param=3, num_conditions=1, bo
     axis_num = 0
     for var in vars_to_plot:
         sim_var = rename.get(var, var)
-        param_names = true_params[sim_var].columns
+        param_names = true_params.loc[0, sim_var].columns
         if var == "dgf":
             num_plots = len(param_names)
         else:
@@ -65,14 +96,14 @@ def sample_and_show(config_path: Path, samples_per_param=3, num_conditions=1, bo
         if var == "dgf":
             for p in param_names:
                 # Assumes ordering is maintained
-                true_val = sim_data["P", sim_var][p].iloc[0]
+                true_val = true_params[sim_var, p].iloc[0]
                 axes[axis_num].axvline(true_val, color="black", linestyle="--")
                 axis_num += 1
         else:
             for cond_ind in range(num_conditions):
                 for p in param_names:
                     # Assumes ordering is maintained
-                    true_val = sim_data["P", sim_var][p].iloc[cond_ind]
+                    true_val = true_params[sim_var, p].iloc[cond_ind]
                     axes[axis_num].axvline(true_val, color="black", linestyle="--")
                     axis_num += 1
     plt.tight_layout()
@@ -118,11 +149,11 @@ def analyse(config):
 if __name__ == "__main__":
     # Delete the directory
     logging.basicConfig(level=logging.INFO)
-    samples_per_param = 99
+    samples_per_param = 100
     num_conditions = 1
     cache = True
     # shutil.rmtree(
     #     Path(f'/home/jason/Documents/Uni/thesis/gtfa/results/toy_likelihood_{num_conditions}_{samples_per_param}_all'),
     #     ignore_errors=True)
     sample_and_show(Path("/home/jason/Documents/Uni/thesis/gtfa/model_configurations/toy_likelihood_conc_single.toml"),
-                    samples_per_param=samples_per_param, num_conditions=num_conditions)
+                    samples_per_param=samples_per_param, num_conditions=num_conditions, cache=cache)
