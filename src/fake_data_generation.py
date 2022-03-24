@@ -120,10 +120,10 @@ def generate_data(stan_input: dict, S_df: pd.DataFrame, samples_per_param=100, n
         b, exchange_free, log_enzyme, log_met_conc_free = sample_free_params(stan_input)
         # Generate the data
         # Make the S_m matrix for solving the system of equations
-        dgr, flux, log_met_conc = sample_fixed_params(S, S_v_base, b, dgf, exchange_free, exchange_rxn_mask,
-                                                      exchange_x_mask, fixed_met_mask, fixed_x_mask, free_met_mask,
-                                                      free_x_mask, log_enzyme, log_met_conc_free, free_row_mask, nmet,
-                                                      nx)
+        dgr, flux, log_met_conc = determine_fixed_params(S, S_v_base, b, dgf, exchange_free, exchange_rxn_mask,
+                                                         exchange_x_mask, fixed_met_mask, fixed_x_mask, free_met_mask,
+                                                         free_x_mask, log_enzyme, log_met_conc_free, free_row_mask, nmet,
+                                                         nx)
         param_dict = {"b": b, "dgr": dgr, "flux": flux, "log_met_conc": log_met_conc, "log_enzyme": log_enzyme, "dgf": dgf}
         if bounds is not None and check_out_of_bounds(bounds, param_dict):
             continue
@@ -209,13 +209,13 @@ def sample_measurements(flux, log_enzyme, log_met_conc, samples_per_param):
 
 
 # NOTE: Could probably be refactored
-def sample_fixed_params(S, S_v_base, b, dgf, exchange_free, exchange_rxn_mask, exchange_x_mask, fixed_met_mask,
-                        fixed_x_mask, free_met_mask, free_x_mask, log_enzyme, log_met_conc_free, free_row_mask, nmet,
-                        nx):
+def determine_fixed_params(S, S_v_base, b, dgf, exchange_free, exchange_rxn_mask, exchange_x_mask, fixed_met_mask,
+                           fixed_x_mask, free_met_mask, free_x_mask, log_enzyme, log_met_conc_free, free_row_mask, nmet,
+                           nx):
     S_v = S_v_base.copy()
     # Elementwise multiply by be
-    S_v[~exchange_rxn_mask] *= (np.exp(log_enzyme[:, np.newaxis]) * b[:,
-                                                                    np.newaxis])  # These need to be column vectors for numpy broadcasting
+    S_v[~exchange_rxn_mask] *= (np.exp(log_enzyme[:, np.newaxis]) * np.exp(b[:,
+                                                                    np.newaxis]))  # These need to be column vectors for numpy broadcasting
     S_m = S @ S_v
     x = np.zeros(nx)
     x[free_x_mask & ~exchange_x_mask] = dgf[free_met_mask] + RT * log_met_conc_free
@@ -233,7 +233,7 @@ def sample_fixed_params(S, S_v_base, b, dgf, exchange_free, exchange_rxn_mask, e
     dgr = S[:, ~exchange_rxn_mask].T @ (dgf + RT * log_met_conc)
     assert (dgr * flux[~exchange_rxn_mask] <= 0).all(), "Fluxes should have the opposite sign to the dgr"
     assert np.allclose(flux[~exchange_rxn_mask],
-                       -dgr * b * np.exp(log_enzyme), atol=1e-4), "Internal fluxes should be be -dgr * b * log_enzyme"
+                       -dgr * np.exp(b) * np.exp(log_enzyme), atol=1e-4), "Internal fluxes should be be -dgr * b * log_enzyme"
     return dgr, flux, log_met_conc
 
 
@@ -244,7 +244,7 @@ def sample_free_params(stan_input, scale_divisor=5):
     # NOTE: It might be worth checking here that the priors across all conditions are the same
     exchange_free = np.random.normal(stan_input["prior_exchange_free"][0][0],
                                      np.array(stan_input["prior_exchange_free"][1][0])/scale_divisor)
-    b = np.random.lognormal(stan_input["prior_b"][0][0], np.array(stan_input["prior_b"][1][0])/scale_divisor)
+    b = np.random.normal(stan_input["prior_b"][0][0], np.array(stan_input["prior_b"][1][0])/scale_divisor)
     log_enzyme = np.random.normal(stan_input["prior_enzyme"][0][0], np.array(stan_input["prior_enzyme"][1][0])/scale_divisor)
     log_met_conc_free = np.random.normal(stan_input["prior_free_met_conc"][0][0],
                                          np.array(stan_input["prior_free_met_conc"][1][0])/scale_divisor)

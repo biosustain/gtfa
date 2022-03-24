@@ -101,7 +101,7 @@ transformed data {
 
 parameters {
   vector[N_metabolite] dgf_ctd;
-  array[N_condition] vector<lower=0>[N_internal] b;
+  array[N_condition] vector[N_internal] b;
   array[N_condition] vector[N_internal] log_enzyme;
   array[N_condition] vector[N_free_met_conc] log_metabolite_free;
   array[N_condition] vector[N_free_exchange] exchange_free;
@@ -124,7 +124,7 @@ transformed parameters {
     mod_s = S;
     // This could be done with the left/right multiply function maybe?
     mod_s[:, ix_internal_to_rxn] = mod_s[:, ix_internal_to_rxn] .*
-        rep_matrix((b[cond] .* exp(log_enzyme[cond]))', N_metabolite);
+        rep_matrix((exp(b[cond]) .* exp(log_enzyme[cond]))', N_metabolite);
     s_c = mod_s * s_gamma;
     // Get a vector of the free values
     if (N_free_exchange > 0){
@@ -145,7 +145,7 @@ transformed parameters {
     // Calculate the dgr
     dgr[cond] = get_dgr(dgf, log_metabolite[cond], S[:, ix_internal_to_rxn]);
     // Calculate the fluxes
-    flux[cond][ix_internal_to_rxn] = -dgr[cond] .* b[cond] .* exp(log_enzyme[cond]);
+    flux[cond][ix_internal_to_rxn] = -dgr[cond] .* exp(b[cond]) .* exp(log_enzyme[cond]);
     // Add the fixed and free exchange reactions
     flux[cond][ix_ex_to_rxn] = x[cond][ix_ex_to_x];
   }
@@ -155,7 +155,7 @@ model {
   // Dgf
   dgf_ctd ~ multi_normal(rep_vector(0, N_metabolite), prior_dgf_cov);
   for (c in 1:N_condition){
-    b[c] ~ lognormal(prior_b[1, c], prior_b[2, c]);
+    b[c] ~ normal(prior_b[1, c], prior_b[2, c]);
     log_enzyme[c] ~ normal(prior_enzyme[1, c], prior_enzyme[2, c]);
     log_metabolite_free[c] ~ normal(prior_free_met_conc[1, c], prior_free_met_conc[2, c]);
     exchange_free[c] ~ normal(prior_exchange_free[1, c], prior_exchange_free[2, c]);
