@@ -10,7 +10,8 @@ from src.fake_data_generation import generate_data_and_config
 from src.fitting import generate_samples
 
 logger = logging.getLogger(__name__)
-
+PROJECT_ROOT = Path(__file__).parent.parent.parent.absolute()
+MC_FILE = PROJECT_ROOT / "model_configurations" / "toy_likelihood_conc_single.toml"
 
 def sample_and_show(config_path: Path, samples_per_param=3, num_conditions=1, bounds=None, cache=True):
     if bounds is None:
@@ -156,5 +157,4 @@ if __name__ == "__main__":
     # shutil.rmtree(
     #     Path(f'/home/jason/Documents/Uni/thesis/gtfa/results/toy_likelihood_{num_conditions}_{samples_per_param}_all'),
     #     ignore_errors=True)
-    sample_and_show(Path("/home/jason/Documents/Uni/thesis/gtfa/model_configurations/toy_likelihood_conc_single.toml"),
-                    samples_per_param=samples_per_param, num_conditions=num_conditions, cache=cache)
+    sample_and_show(MC_FILE)
