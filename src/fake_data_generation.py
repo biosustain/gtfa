@@ -122,9 +122,11 @@ def generate_data(stan_input: dict, S_df: pd.DataFrame, samples_per_param=100, n
         # Make the S_m matrix for solving the system of equations
         dgr, flux, log_met_conc = determine_fixed_params(S, S_v_base, b, dgf, exchange_free, exchange_rxn_mask,
                                                          exchange_x_mask, fixed_met_mask, fixed_x_mask, free_met_mask,
-                                                         free_x_mask, log_enzyme, log_met_conc_free, free_row_mask, nmet,
+                                                         free_x_mask, log_enzyme, log_met_conc_free, free_row_mask,
+                                                         nmet,
                                                          nx)
-        param_dict = {"b": b, "dgr": dgr, "flux": flux, "log_met_conc": log_met_conc, "log_enzyme": log_enzyme, "dgf": dgf}
+        param_dict = {"b": b, "dgr": dgr, "flux": flux, "log_met_conc": log_met_conc, "log_enzyme": log_enzyme,
+                      "dgf": dgf}
         if bounds is not None and check_out_of_bounds(bounds, param_dict):
             continue
         # Sample measurements from these parameters
@@ -215,7 +217,7 @@ def determine_fixed_params(S, S_v_base, b, dgf, exchange_free, exchange_rxn_mask
     S_v = S_v_base.copy()
     # Elementwise multiply by be
     S_v[~exchange_rxn_mask] *= (np.exp(log_enzyme[:, np.newaxis]) * np.exp(b[:,
-                                                                    np.newaxis]))  # These need to be column vectors for numpy broadcasting
+                                                                           np.newaxis]))  # These need to be column vectors for numpy broadcasting
     S_m = S @ S_v
     x = np.zeros(nx)
     x[free_x_mask & ~exchange_x_mask] = dgf[free_met_mask] + RT * log_met_conc_free
@@ -233,7 +235,8 @@ def determine_fixed_params(S, S_v_base, b, dgf, exchange_free, exchange_rxn_mask
     dgr = S[:, ~exchange_rxn_mask].T @ (dgf + RT * log_met_conc)
     assert (dgr * flux[~exchange_rxn_mask] <= 0).all(), "Fluxes should have the opposite sign to the dgr"
     assert np.allclose(flux[~exchange_rxn_mask],
-                       -dgr * np.exp(b) * np.exp(log_enzyme), atol=1e-4), "Internal fluxes should be be -dgr * b * log_enzyme"
+                       -dgr * np.exp(b) * np.exp(log_enzyme),
+                       atol=1e-4), "Internal fluxes should be be -dgr * b * log_enzyme"
     return dgr, flux, log_met_conc
 
 
@@ -243,16 +246,17 @@ def sample_free_params(stan_input, scale_divisor=5):
     # Assumes a single condition
     # NOTE: It might be worth checking here that the priors across all conditions are the same
     exchange_free = np.random.normal(stan_input["prior_exchange_free"][0][0],
-                                     np.array(stan_input["prior_exchange_free"][1][0])/scale_divisor)
-    b = np.random.normal(stan_input["prior_b"][0][0], np.array(stan_input["prior_b"][1][0])/scale_divisor)
-    log_enzyme = np.random.normal(stan_input["prior_enzyme"][0][0], np.array(stan_input["prior_enzyme"][1][0])/scale_divisor)
+                                     np.array(stan_input["prior_exchange_free"][1][0]) / scale_divisor)
+    b = np.random.normal(stan_input["prior_b"][0][0], np.array(stan_input["prior_b"][1][0]) / scale_divisor)
+    log_enzyme = np.random.normal(stan_input["prior_enzyme"][0][0],
+                                  np.array(stan_input["prior_enzyme"][1][0]) / scale_divisor)
     log_met_conc_free = np.random.normal(stan_input["prior_free_met_conc"][0][0],
-                                         np.array(stan_input["prior_free_met_conc"][1][0])/scale_divisor)
+                                         np.array(stan_input["prior_free_met_conc"][1][0]) / scale_divisor)
     return b, exchange_free, log_enzyme, log_met_conc_free
 
 
 def generate_data_and_config(config_path: Path, samples_per_param=10, num_conditions=10, measured_params=None,
-                             bounds=None):
+                             bounds=None, cache=True):
     """
     Generate fake data for a given existing configuration using the priors.
     """
@@ -261,19 +265,51 @@ def generate_data_and_config(config_path: Path, samples_per_param=10, num_condit
     config_dir = config_path.parent
     base_config = load_model_configuration(config_path)
     new_config = switch_config(base_config, measured_params, num_conditions, samples_per_param)
-    S = pd.read_csv(new_config.data_folder / "stoichiometry.csv", index_col=0)
-    # Generate the data
-    # Load the stan input with the original data (we won't use any of the measurements, just the priors)
-    stan_input = stan_input_from_config(new_config)
-    data_df = generate_data(stan_input, S, samples_per_param, num_conditions, bounds=bounds)
-    # Save the parameters as well
-    data_df["P"].loc[0].to_csv(new_config.data_folder / "true_params.csv")  # Only need the first instance of each param
-    # Select only the measured columns
-    write_measurements(data_df, measured_params, new_config.data_folder, num_conditions, samples_per_param)
-    # Write new config file
-    (config_dir / "synthetic").mkdir(exist_ok=True)
-    new_config.to_toml(config_dir / "synthetic" / (new_config.name + ".toml"))
+    # If we are caching we don't want to overwrite the generated data
+    skip_sampling = True
+    if cache:
+        if not new_config.data_folder.exists():
+            logger.info("No existing cached data. Running data generation"
+                        )
+            skip_sampling = False
+    else:
+        if new_config.data_folder.exists():
+            logger.info("Removing existing data folder")
+            shutil.rmtree(new_config.data_folder)
+        if new_config.result_dir.exists():
+            logger.info("Removing existing result folder")
+            shutil.rmtree(new_config.result_dir)
+        skip_sampling = False
+    if not skip_sampling:
+        make_data_folder(base_config, new_config)
+        S = pd.read_csv(new_config.data_folder / "stoichiometry.csv", index_col=0)
+        # Generate the data
+        # Load the stan input with the original data (we won't use any of the measurements, just the priors)
+        stan_input = stan_input_from_config(new_config)
+        data_df = generate_data(stan_input, S, samples_per_param, num_conditions, bounds=bounds)
+        data_df.to_csv(new_config.data_folder / "true_params_and_measurements.csv")
+        # Save the parameters as well
+        data_df["P"].loc[0].to_csv(
+            new_config.data_folder / "true_params.csv")  # Only need the first instance of each param
+        # Select only the measured columns
+        write_measurements(data_df, measured_params, new_config.data_folder, num_conditions, samples_per_param)
+        # Write new config file
+        (config_dir / "synthetic").mkdir(exist_ok=True)
+        new_config.to_toml(config_dir / "synthetic" / (new_config.name + ".toml"))
+    else:
+        # read in the data df - the measurements have already been written
+        logger.info("Using cached true params")
+        # This has a 3 level multiarray
+        data_df = pd.read_csv(new_config.data_folder / "true_params_and_measurements.csv", header=[0, 1, 2], index_col=0)
     return new_config, data_df
+
+
+def make_data_folder(base_config, new_config):
+    new_config.data_folder.mkdir(parents=True)
+    # Copy the data folder across
+    for f in base_config.data_folder.iterdir():
+        if not f.is_dir():
+            shutil.copy(f, new_config.data_folder)
 
 
 def switch_config(base_config, measured_params, num_conditions, samples_per_param):
@@ -281,13 +317,7 @@ def switch_config(base_config, measured_params, num_conditions, samples_per_para
     new_config = base_config.copy()
     new_config.name = make_model_name(measured_params, new_config, num_conditions, samples_per_param)
     new_config.data_folder = base_dir / "data" / "fake" / new_config.name
-    new_config.data_folder.mkdir(parents=True, exist_ok=True)
     new_config.result_dir = base_dir / "results" / new_config.name
-    new_config.data_folder.mkdir(parents=True, exist_ok=True)
-    # Copy the data folder across
-    for f in base_config.data_folder.iterdir():
-        if not f.is_dir():
-            shutil.copy(f, new_config.data_folder)
     return new_config
 
 
