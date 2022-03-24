@@ -86,7 +86,7 @@ def plot_density_true_params(data, num_conditions, rename, sim_data, true_params
     axis_num = 0
     for var in vars_to_plot:
         sim_var = rename.get(var, var)
-        param_names = true_params.loc[0, sim_var].columns
+        param_names = true_params.loc[[0], sim_var].columns
         if var == "dgf":
             num_plots = len(param_names)
         else:
