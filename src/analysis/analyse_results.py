@@ -1,14 +1,87 @@
-import itertools
-import os
+import logging
+import shutil
+from pathlib import Path
 
-import pandas as pd
+import arviz as az
 import numpy as np
 from matplotlib import pyplot as plt
-import arviz as az
+
+from src.fake_data_generation import generate_data_and_config
+from src.fitting import generate_samples
+
+logger = logging.getLogger(__name__)
+
+
+def sample_and_show(config_path: Path, samples_per_param=3, num_conditions=1, bounds=None, cache=True):
+    if bounds is None:
+        bounds = {"log_met_conc": (-13, -3),
+                  "flux": [(-100, -1), (1, 100)],
+                  "b": [(0, 200000)],
+                  "log_enzyme": (-13, -3),
+                  "dgr": (-100, 100)}
+    # Generate simulated data from the config
+    new_config, sim_data = generate_data_and_config(config_path, samples_per_param=samples_per_param,
+                                                    num_conditions=num_conditions, bounds=bounds, cache=cache)
+    perform_sampling = False
+    if cache and not new_config.result_dir.exists():
+        perform_sampling = True
+        logger.info("No samples found, generating new samples")
+        # Make the results dir
+        new_config.result_dir.mkdir()
+    if not cache and new_config.result_dir.exists():
+        # Make the results dir
+        shutil.rmtree(new_config.result_dir)
+        # Make an empty folder
+        new_config.result_dir.mkdir()
+        perform_sampling = True
+    if perform_sampling:
+        generate_samples(new_config)
+    else:
+        logger.info("Using cached samples")
+    # Display the simulated samples
+    data = az.from_netcdf(new_config.result_dir / "infd.nc")
+    true_params = sim_data.loc[[0], "P"]
+    rename = {"log_metabolite": "mic",
+              "log_enzyme": "enzyme"}  # Convert between stan data names and generated data names
+    vars_to_plot = ["dgf", "flux", "log_metabolite", "log_enzyme", "b", "dgr"]
+    n_params_to_plot = len(true_params[[rename.get(v, v) for v in vars_to_plot]].columns)
+    total_num_plots = n_params_to_plot * num_conditions
+    # Remove the extra dgf plots if it is to be plotted
+    if "dgf" in vars_to_plot:
+        total_num_plots -= (num_conditions - 1) * len(true_params["dgf"].columns)
+    ncols = 5
+    nrows = int(np.ceil(total_num_plots / ncols))
+    fig, axes = plt.subplots(nrows, ncols, figsize=(12, nrows * 2))
+    # Add the true parameters to the diagram
+    axes = axes.flatten()
+    axis_num = 0
+    for var in vars_to_plot:
+        sim_var = rename.get(var, var)
+        param_names = true_params[sim_var].columns
+        if var == "dgf":
+            num_plots = len(param_names)
+        else:
+            num_plots = len(param_names) * num_conditions
+        az.plot_density(data, var_names=var, ax=axes.flatten()[axis_num:axis_num + num_plots])
+        # Note: there's probably a more elegant way to do this - no time, sorry.
+        if var == "dgf":
+            for p in param_names:
+                # Assumes ordering is maintained
+                true_val = sim_data["P", sim_var][p].iloc[0]
+                axes[axis_num].axvline(true_val, color="black", linestyle="--")
+                axis_num += 1
+        else:
+            for cond_ind in range(num_conditions):
+                for p in param_names:
+                    # Assumes ordering is maintained
+                    true_val = sim_data["P", sim_var][p].iloc[cond_ind]
+                    axes[axis_num].axvline(true_val, color="black", linestyle="--")
+                    axis_num += 1
+    plt.tight_layout()
+    plt.show()
 
 
 def pair_plots(config, idata, display=True, save=False):
-
     for var in ["dgr"]:
         axes = az.plot_pair(
             idata, group="posterior",
@@ -32,7 +105,6 @@ def pair_plots(config, idata, display=True, save=False):
         if display:
             plt.show()
 
-
 def analyse(config):
     # If we are developing we don't want to save the pair plot files
     save_plots = not config.devel
@@ -42,3 +114,17 @@ def analyse(config):
     if config.analyse.get("dens", False):
         az.plot_density(idata, var_names=["log_metabolite", "b", "flux", "log_enzyme", "dgf", "dgr"])
         plt.show()
+
+
+# TODO: Remove
+if __name__ == "__main__":
+    # Delete the directory
+    logging.basicConfig(level=logging.INFO)
+    samples_per_param = 100
+    num_conditions = 1
+    cache = True
+    # shutil.rmtree(
+    #     Path(f'/home/jason/Documents/Uni/thesis/gtfa/results/toy_likelihood_{num_conditions}_{samples_per_param}_all'),
+    #     ignore_errors=True)
+    sample_and_show(Path("/home/jason/Documents/Uni/thesis/gtfa/model_configurations/toy_likelihood_conc_single.toml"),
+                    samples_per_param=samples_per_param, num_conditions=num_conditions)
