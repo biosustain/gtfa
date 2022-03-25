@@ -103,11 +103,10 @@ def test_directionality(small_model_irreversible):
     measurements = pd.read_csv(config.data_folder / "measurements.csv")
     priors = pd.read_csv(config.data_folder / "priors.csv")
     data = az.from_cmdstanpy(mcmc, coords=get_coords(S, measurements, priors, config.order))
-    flux_df = data.posterior.flux.to_dataframe().unstack("flux_dim_0").loc[:, ~exchange_rxns]
-    b_df = data.posterior.b.to_dataframe().unstack("b_dim_0")
-    dgr_df = data.posterior.dgr.to_dataframe().unstack("dgr_dim_0")
+    flux_df = data.posterior.flux.to_dataframe().unstack("flux_dim_1").loc[:, ~exchange_rxns]
+    dgr_df = data.posterior.dgr.to_dataframe().unstack("dgr_dim_1")
     # Check that the irreversible fluxes are going in the right direction
-    assert ((flux_df.values * b_df.values * dgr_df.values) < 0).all(axis=None)
+    assert ((flux_df.values * dgr_df.values) < 0).all(axis=None)
     # Check the absolute fluxes of reactions that are very irreversible
     assert (flux_df.iloc[:, 0] > 0).all()  # g6p/g1p
     assert (flux_df.iloc[:, 1] > 0).all()  # g1p/f1p
