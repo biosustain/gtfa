@@ -245,13 +245,18 @@ def sample_free_params(stan_input, scale_divisor=5):
     # samples are accepted
     # Assumes a single condition
     # NOTE: It might be worth checking here that the priors across all conditions are the same
-    exchange_free = np.random.normal(stan_input["prior_exchange_free"][0][0],
-                                     np.array(stan_input["prior_exchange_free"][1][0]) / scale_divisor)
+    free_exchange_ix = np.array(stan_input["ix_free_ex_to_ex"], dtype=int) - 1
+    free_exchange_rxn_ix = np.array(stan_input["ix_ex_to_rxn"])[free_exchange_ix] - 1
+    free_exchange_prior_mean = np.array(stan_input["prior_exchange"][0][0])[free_exchange_rxn_ix]
+    free_exchange_prior_scale = np.array(stan_input["prior_exchange"][1][0])[free_exchange_rxn_ix] / scale_divisor
+    exchange_free = np.random.normal(free_exchange_prior_mean, free_exchange_prior_scale)
     b = np.random.normal(stan_input["prior_b"][0][0], np.array(stan_input["prior_b"][1][0]) / scale_divisor)
     log_enzyme = np.random.normal(stan_input["prior_enzyme"][0][0],
                                   np.array(stan_input["prior_enzyme"][1][0]) / scale_divisor)
-    log_met_conc_free = np.random.normal(stan_input["prior_free_met_conc"][0][0],
-                                         np.array(stan_input["prior_free_met_conc"][1][0]) / scale_divisor)
+    free_mets = np.array(stan_input["ix_free_met_to_met"], dtype=int) - 1
+    free_mets_prior_mean = np.array(stan_input["prior_met_conc"][0][0])[free_mets]
+    free_mets_prior_scale = np.array(stan_input["prior_met_conc"][1][0])[free_mets] / scale_divisor
+    log_met_conc_free = np.random.normal(free_mets_prior_mean, free_mets_prior_scale)
     return b, exchange_free, log_enzyme, log_met_conc_free
 
 

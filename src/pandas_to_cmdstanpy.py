@@ -246,20 +246,14 @@ def get_stan_input(
     priors_cov.loc[zero_cols, zero_cols] = np.diag(np.full(zero_cols.sum(), FIXED_DGF_EPSILON))
     assert np.linalg.matrix_rank(priors_cov) == len(priors_cov), "The covariance matrix should be full rank"
     # Transform into measurements for the model
-    free_exchange = get_name_ordered_overlap(coords, "reaction_ind", ["exchange", "free_x_names"])
-    free_met_conc = get_name_ordered_overlap(coords, "metabolite_ind", ["metabolite", "free_x_names"])
     prior_b = extract_prior_2d("b", priors, coords["internal_names"], coords["condition"], DEFAULT_B_MEAN,
                                DEFAULT_B_SCALE)
     prior_enzyme = extract_prior_2d("internal_names", priors, coords["internal_names"], coords["condition"],
                                     DEFAULT_ENZ_CONC_MEAN, DEFAULT_ENZ_CONC_SCALE)
-    prior_met_conc_free = extract_prior_2d("metabolite", priors, free_met_conc, coords["condition"],
+    prior_met_conc = extract_prior_2d("metabolite", priors, coords["metabolite"], coords["condition"],
                                            DEFAULT_MET_CONC_MEAN, DEFAULT_MET_CONC_SCALE)
-    prior_exchange_free = extract_prior_2d("exchange", priors, free_exchange, coords["condition"],
+    prior_exchange = extract_prior_2d("exchange", priors, coords["exchange"], coords["condition"],
                                            DEFAULT_EXCHANGE_MEAN, DEFAULT_EXCHANGE_SCALE)
-    # Add the fixed priors to the measurements
-    fixed_exchange_prior_df, fixed_met_prior_df = fixed_prior_to_measurements(coords, priors)
-    measurements_by_type["mic"] = measurements_by_type["mic"].append(fixed_met_prior_df)
-    measurements_by_type["flux"] = measurements_by_type["flux"].append(fixed_exchange_prior_df)
     # We're going to assume full prior information on dgf
     prior_dgf_mean = priors[priors["parameter"] == "dgf"]["loc"]
     if len(prior_dgf_mean) != S.shape[0]:
@@ -325,12 +319,12 @@ def get_stan_input(
         # priors
         "prior_dgf_mean": prior_dgf_mean.values.tolist(),
         "prior_dgf_cov": priors_cov.values.tolist(),
-        "prior_exchange_free": [prior_exchange_free.location.values.tolist(),
-                                prior_exchange_free.scale.values.tolist()],
+        "prior_exchange": [prior_exchange.location.values.tolist(),
+                                prior_exchange.scale.values.tolist()],
         "prior_enzyme": [prior_enzyme.location.values.tolist(), prior_enzyme.scale.values.tolist()],
         "prior_b": [prior_b.location.values.tolist(), prior_b.scale.values.tolist()],
-        "prior_free_met_conc": [prior_met_conc_free.location.values.tolist(),
-                                prior_met_conc_free.scale.values.tolist()],
+        "prior_met_conc": [prior_met_conc.location.values.tolist(),
+                                prior_met_conc.scale.values.tolist()],
     }
 
 

@@ -76,10 +76,10 @@ data {
   //// priors
   vector[N_metabolite] prior_dgf_mean;
   matrix[N_metabolite, N_metabolite] prior_dgf_cov;
-  array[2, N_condition] vector[N_free_exchange] prior_exchange_free;
+  array[2, N_condition] vector[N_exchange] prior_exchange;
   array[2, N_condition] vector[N_internal] prior_enzyme;
   array[2, N_condition] vector[N_internal] prior_b;
-  array[2, N_condition] vector[N_free_met_conc] prior_free_met_conc;
+  array[2, N_condition] vector[N_metabolite] prior_met_conc;
 }
 transformed data {
     // The combined matrix for exchange reactions and concentrations
@@ -94,9 +94,6 @@ transformed data {
     array[N_fixed_met_conc] int<lower=1, upper=N_x> ix_fixed_met_to_x = ix_fixed_to_x[ix_fixed_met_to_fixed];
     array[N_free_exchange] int<lower=1, upper=N_x> ix_free_ex_to_x = ix_free_to_x[ix_free_ex_to_free];
     array[N_fixed_exchange] int<lower=1, upper=N_x> ix_fixed_ex_to_x = ix_free_to_x[ix_fixed_ex_to_fixed];
-    // Free and fixed exchanges to their corresponding reactions
-    array[N_free_exchange] int<lower=1, upper=N_reaction> ix_free_met_to_mets = ix_ex_to_rxn[ix_free_ex_to_ex];
-    array[N_fixed_exchange] int<lower=1, upper=N_reaction> ix_fixed_met_to_mets = ix_ex_to_rxn[ix_fixed_ex_to_ex];
 }
 
 parameters {
@@ -157,8 +154,8 @@ model {
   for (c in 1:N_condition){
     b[c] ~ normal(prior_b[1, c], prior_b[2, c]);
     log_enzyme[c] ~ normal(prior_enzyme[1, c], prior_enzyme[2, c]);
-    log_metabolite_free[c] ~ normal(prior_free_met_conc[1, c], prior_free_met_conc[2, c]);
-    exchange_free[c] ~ normal(prior_exchange_free[1, c], prior_exchange_free[2, c]);
+    log_metabolite[c] ~ normal(prior_met_conc[1, c], prior_met_conc[2, c]);
+    flux[c][ix_ex_to_rxn] ~ normal(prior_exchange[1, c], prior_exchange[2, c]);
   }
   //// Likelihood
   // Metabolite concentrations
@@ -187,7 +184,7 @@ generated quantities {
   // Replace the below with warning messages
   {
     vector[N_metabolite] conc_change;
-    real eps = 1e-6;
+    real eps = 1e-5;
     // Should be all 0
     for (cond in 1:N_condition){
       conc_change = S * flux[cond];
