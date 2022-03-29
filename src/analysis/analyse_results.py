@@ -1,17 +1,22 @@
+import itertools
 import logging
 import shutil
 from pathlib import Path
 
 import arviz as az
 import numpy as np
+import pandas as pd
 from matplotlib import pyplot as plt
 
 from src.fake_data_generation import generate_data_and_config
-from src.fitting import generate_samples
+from src.fitting import generate_samples, run_stan
+from src.model_configuration import load_model_configuration
+from src.pandas_to_cmdstanpy import get_exchange_rxns, get_free_x_and_rows, get_coords
 
 logger = logging.getLogger(__name__)
 PROJECT_ROOT = Path(__file__).parent.parent.parent.absolute()
 MC_FILE = PROJECT_ROOT / "model_configurations" / "toy_likelihood_conc_single.toml"
+
 
 def sample_and_show(config_path: Path, samples_per_param=3, num_conditions=1, bounds=None, cache=True):
     if bounds is None:
@@ -65,13 +70,14 @@ def plot_pairs_true_params(data, rename, true_params, vars_to_plot, condition_nu
     """
     axs = az.plot_pair(data, var_names=vars_to_plot, coords={"condition": f"condition_{condition_num}"})
     sim_names = [rename.get(v, v) for v in vars_to_plot]
-    true_vals = true_params[sim_names].iloc[condition_num-1]
+    true_vals = true_params[sim_names].iloc[condition_num - 1]
     for i in range(len(axs)):
-        for j in range(i+1):
+        for j in range(i + 1):
             axs[i][j].axvline(true_vals.iloc[j], color="black", linestyle="--")
             # The first row corresponds to the second entry (no need to plot the diagonal)
-            axs[i][j].axhline(true_vals.iloc[i+1], color="black", linestyle="--")
+            axs[i][j].axhline(true_vals.iloc[i + 1], color="black", linestyle="--")
     plt.show()
+
 
 # NOTE: Can refactor to remove sim_data
 def plot_density_true_params(data, num_conditions, rename, sim_data, true_params, vars_to_plot):
@@ -136,6 +142,7 @@ def pair_plots(config, idata, display=True, save=False):
         if display:
             plt.show()
 
+
 def analyse(config):
     # If we are developing we don't want to save the pair plot files
     save_plots = not config.devel
@@ -147,14 +154,105 @@ def analyse(config):
         plt.show()
 
 
-# TODO: Remove
+def generate_fixed_free_diagrams(save=True, display=False):
+    base_config = load_model_configuration(PROJECT_ROOT / "notebooks" / "prior_to_measurement_base_config.toml")
+    base_config.result_dir = Path("results")
+    ####################################################################################################################
+    # Determine all valid combinations
+    S = pd.read_csv(base_config.data_folder / "stoichiometry.csv", index_col=0)
+    exchange = get_exchange_rxns(S)
+    x_vars = pd.concat([S.columns[exchange].to_series(), S.index.to_series()])
+    # Now find the combinations of possible free variables
+    combs = itertools.combinations(x_vars, 2)
+    valid_combs = []
+    # Now test each of the combinations
+    for comb in combs:
+        comb = pd.Series(comb, index=comb)
+        free_x, _ = get_free_x_and_rows(S, comb)
+        # If the given variables (the final two) are free, then store them
+        if free_x[x_vars.isin(comb)].sum() == 2:
+            valid_combs.append(comb.to_list())
+    ####################################################################################################################
+    # Generate the data for each combination
+    datasets = []
+    measurements = pd.read_csv(base_config.data_folder / "measurements.csv")
+    priors = pd.read_csv(base_config.data_folder / "priors.csv")
+    for comb in valid_combs:
+        config = base_config
+        config.order = pd.Series(comb, index=comb)
+        # Create the results directory
+        if config.result_dir.exists():
+            shutil.rmtree(config.result_dir)
+        config.result_dir.mkdir()
+        mcmc = run_stan(config)
+        data = az.from_cmdstanpy(mcmc, coords=get_coords(S, measurements, priors, config.order))
+        datasets.append(data)
+    ####################################################################################################################
+    # Plot the fixed/free concentration diagram
+    fig, axs = plt.subplots(2, 2, figsize=(15, 10), sharey=True)
+    axs = axs.flatten()
+    comb_strs = [f"{comb[0]}/{comb[1]}" for comb in valid_combs]
+    # First the log metabolites
+    for i in range(4):
+        # Compile the data from all runs
+        d = []
+        for dataset in datasets:
+            d.append(dataset.posterior.log_metabolite.isel(log_metabolite_dim_1=i).to_series())
+        df = pd.concat(d, axis=1)
+        df.columns = comb_strs
+        df.boxplot(ax=axs[i])
+        axs[i].set_title(f"{S.index[i]}")
+        for tick in axs[i].get_xticklabels():
+            tick.set_rotation(90)
+            if S.index[i] in str(tick) and not ("_" + S.index[i]) in str(tick):
+                tick.set_fontweight("bold")
+    plt.tight_layout()
+    if save:
+        plot_dir = PROJECT_ROOT / "report" / "images"
+        plt.savefig(plot_dir / "fixed_free_concs.png")
+    if display:
+        plt.show()
+    ####################################################################################################################
+    # Plot the fixed/free exchange diagram
+    fig, axs = plt.subplots(1, 2, figsize=(15, 5), sharey=True)
+    axs = axs.flatten()
+    for i, j in enumerate([5, 6]):
+        # Compile the data from all runs
+        d = []
+        for dataset in datasets:
+            d.append(dataset.posterior.flux.isel(flux_dim_1=j).to_series())
+        df = pd.concat(d, axis=1)
+        df.columns = comb_strs
+        df.boxplot(ax=axs[i])
+        axs[i].set_title(f"{S.columns[j]}")
+        for tick in axs[i].get_xticklabels():
+            tick.set_rotation(90)
+            if S.index[i] in str(tick) and not ("_" + S.index[i]) in str(tick):
+                tick.set_fontweight("bold")
+    plt.tight_layout()
+    if save:
+        plot_dir = PROJECT_ROOT / "report" / "images"
+        plt.savefig(plot_dir / "fixed_free_exchange.png")
+    if display:
+        plt.show()
+
+
+def generate_all():
+    generate_fixed_free_diagrams(save=True, display=False)
+
+    # TODO: REMOVE
+    # samples_per_param = 100
+    # num_conditions = 1
+    # cache = True
+    # # shutil.rmtree(
+    # #     Path(f'/home/jason/Documents/Uni/thesis/gtfa/results/toy_likelihood_{num_conditions}_{samples_per_param}_all'),
+    # #     ignore_errors=True)
+    # sample_and_show(MC_FILE)
+
 if __name__ == "__main__":
     # Delete the directory
     logging.basicConfig(level=logging.INFO)
-    samples_per_param = 100
-    num_conditions = 1
-    cache = True
-    # shutil.rmtree(
-    #     Path(f'/home/jason/Documents/Uni/thesis/gtfa/results/toy_likelihood_{num_conditions}_{samples_per_param}_all'),
-    #     ignore_errors=True)
-    sample_and_show(MC_FILE)
+    generate_all()
+
+
+
