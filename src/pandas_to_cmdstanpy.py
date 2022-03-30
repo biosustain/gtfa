@@ -252,7 +252,7 @@ def get_stan_input(
                                     DEFAULT_ENZ_CONC_MEAN, DEFAULT_ENZ_CONC_SCALE)
     prior_met_conc = extract_prior_2d("metabolite", priors, coords["metabolite"], coords["condition"],
                                            DEFAULT_MET_CONC_MEAN, DEFAULT_MET_CONC_SCALE)
-    prior_exchange = extract_prior_2d("exchange", priors, coords["exchange"], coords["condition"],
+    prior_exchange = extract_prior_2d("flux", priors, coords["exchange"], coords["condition"],
                                            DEFAULT_EXCHANGE_MEAN, DEFAULT_EXCHANGE_SCALE)
     # We're going to assume full prior information on dgf
     prior_dgf_mean = priors[priors["parameter"] == "dgf"]["loc"]
