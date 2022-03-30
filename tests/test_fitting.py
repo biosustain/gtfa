@@ -23,7 +23,7 @@ def test_steady_state(model_small):
     df = data.posterior.flux.to_dataframe().unstack("flux_dim_1")
     # Check the steady state for each sample
     for i in range(df.shape[0]):
-        assert pytest.approx(0, abs=1e-6) == S @ df.iloc[i, :].values, "All flux samples should be balanced"
+        assert pytest.approx(0, abs=1e-5) == S @ df.iloc[i, :].values, "All flux samples should be balanced"
 
 
 def test_steady_state_thermo(model_small_rankdef_thermo):

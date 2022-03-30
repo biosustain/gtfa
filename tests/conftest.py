@@ -9,7 +9,7 @@ import requests
 from cobra.io import load_model
 
 from src import model_conversion
-from src.dgf_estimation import calc_model_dgfs_with_prediction_error
+from src.dgf0_estimation import calc_model_dgf0s_with_prediction_error
 from src.util import get_smat_df
 from tests.model_setup import gen_random_log_concs, build_small_test_model, build_small_test_model_rankdef_stoich, \
     build_small_test_model_rankdef_thermo
@@ -45,15 +45,15 @@ def ecoli_model():
     # Write the files
     model = load_model("e_coli_core")
     log_concs, log_conc_scales = gen_random_log_concs(model)
-    dgfs, dgf_covs = calc_model_dgfs_with_prediction_error(model)
+    dgf0s, dgf0_covs = calc_model_dgf0s_with_prediction_error(model)
     S = get_smat_df(model)
     temp_dir = Path("temp_dir")
     if temp_dir.exists():
         shutil.rmtree(temp_dir)
     result_dir = temp_dir / "results"
     result_dir.mkdir(parents=True)
-    # Get the dgfs
-    model_conversion.write_model_files(temp_dir, S, dgfs, dgf_covs, ["1"], [log_concs], [log_conc_scales])
+    # Get the dgf0s
+    model_conversion.write_model_files(temp_dir, S, dgf0s, dgf0_covs, ["1"], [log_concs], [log_conc_scales])
     yield model
     # Clean up
     shutil.rmtree(temp_dir)
@@ -68,7 +68,7 @@ def model_small():
     # Write the files
     model = build_small_test_model()
     log_concs, log_conc_scales = gen_random_log_concs(model)
-    dgfs, dgf_covs = calc_model_dgfs_with_prediction_error(model)
+    dgf0s, dgf0_covs = calc_model_dgf0s_with_prediction_error(model)
     S = get_smat_df(model)
     temp_dir = Path("temp_dir")
     result_dir = temp_dir / "results"
@@ -76,7 +76,7 @@ def model_small():
         shutil.rmtree(temp_dir)
     temp_dir.mkdir()
     result_dir.mkdir()
-    model_conversion.write_model_files(temp_dir, S, dgfs, dgf_covs, ["1"], [log_concs], [log_conc_scales])
+    model_conversion.write_model_files(temp_dir, S, dgf0s, dgf0_covs, ["1"], [log_concs], [log_conc_scales])
     # We need at least one measurment
     header = pd.DataFrame(columns=["measurement_type", "target_id", "condition_id", "measurement", "error_scale"],
                           data=[["mic", "f6p_c", "condition_1", -2, 0.1]])
@@ -95,7 +95,7 @@ def model_small_rankdef():
     # Write the files
     model = build_small_test_model_rankdef_stoich()
     log_concs, log_conc_scales = gen_random_log_concs(model)
-    dgfs, dgf_covs = model_conversion.calc_model_dgfs_with_prediction_error(model)
+    dgf0s, dgf0_covs = model_conversion.calc_model_dgf0s_with_prediction_error(model)
     S = get_smat_df(model)
     temp_dir = Path("temp_dir")
     result_dir = temp_dir / "results"
@@ -103,7 +103,7 @@ def model_small_rankdef():
         shutil.rmtree(temp_dir)
     temp_dir.mkdir()
     result_dir.mkdir()
-    model_conversion.write_model_files(temp_dir, S, dgfs, dgf_covs, ["1"], [log_concs], [log_conc_scales])
+    model_conversion.write_model_files(temp_dir, S, dgf0s, dgf0_covs, ["1"], [log_concs], [log_conc_scales])
     # We need at least one measurment
     header = pd.DataFrame(columns=["measurement_type", "target_id", "condition_id", "measurement", "error_scale"],
                           data=[["mic", "f6p_c", "condition_1", -2, 0.1]])
@@ -122,7 +122,7 @@ def model_small_rankdef_thermo():
     # Write the files
     model = build_small_test_model_rankdef_thermo()
     log_concs, log_conc_scales = gen_random_log_concs(model)
-    dgfs, dgf_covs = model_conversion.calc_model_dgfs_with_prediction_error(model)
+    dgf0s, dgf0_covs = model_conversion.calc_model_dgf0s_with_prediction_error(model)
     S = get_smat_df(model)
     temp_dir = Path("temp_dir")
     result_dir = temp_dir / "results"
@@ -130,7 +130,7 @@ def model_small_rankdef_thermo():
         shutil.rmtree(temp_dir)
     temp_dir.mkdir()
     result_dir.mkdir()
-    model_conversion.write_model_files(temp_dir, S, dgfs, dgf_covs, ["1"], [log_concs], [log_conc_scales])
+    model_conversion.write_model_files(temp_dir, S, dgf0s, dgf0_covs, ["1"], [log_concs], [log_conc_scales])
     # We need at least one measurment
     header = pd.DataFrame(columns=["measurement_type", "target_id", "condition_id", "measurement", "error_scale"],
                           data=[["mic", "f6p_c", "condition_1", -2, 0.1]])
@@ -149,18 +149,18 @@ def small_model_irreversible():
     # Write the files
     model = build_small_test_model()
     log_concs, log_conc_scales = gen_random_log_concs(model)
-    dgfs, dgf_covs = calc_model_dgfs_with_prediction_error(model)
-    # Change the dgfs to be irreversible
-    dgfs[1] += 500  # The input has high energy
-    dgfs[2] -= 500  # The output has low energy
+    dgf0s, dgf0_covs = calc_model_dgf0s_with_prediction_error(model)
+    # Change the dgf0s to be irreversible
+    dgf0s[1] += 500  # The input has high energy
+    dgf0s[2] -= 500  # The output has low energy
     S = get_smat_df(model)
     temp_dir = Path("temp_dir")
     if temp_dir.exists():
         shutil.rmtree(temp_dir)
     result_dir = temp_dir / "results"
     result_dir.mkdir(parents=True)
-    # Get the dgfs
-    model_conversion.write_model_files(temp_dir, S, dgfs, dgf_covs, ["1"], [log_concs], [log_conc_scales])
+    # Get the dgf0s
+    model_conversion.write_model_files(temp_dir, S, dgf0s, dgf0_covs, ["1"], [log_concs], [log_conc_scales])
     yield model
     # Clean up
     shutil.rmtree(temp_dir)

@@ -15,59 +15,6 @@ from src import util
 from src.cmdstanpy_to_arviz import get_infd_kwargs
 from src.fitting import stan_input_from_dir, stan_input_from_config
 from src.model_configuration import load_model_configuration, ModelConfiguration
-
-import arviz as az
-
-# # Indexing
-# "ix_free_met_to_free": make_index_map(coords, "free_x_names", ["free_met_conc"]),
-# "ix_free_ex_to_free": make_index_map(coords, "free_x_names", ["free_exchange"]),
-# "ix_fixed_met_to_fixed": make_index_map(coords, "fixed_x_names", ["fixed_met_conc"]),
-# "ix_fixed_ex_to_fixed": make_index_map(coords, "fixed_x_names", ["fixed_exchange"]),
-# "ix_free_to_x": make_index_map(coords, "x_names", ["free_x_names"]),
-# "ix_fixed_to_x": make_index_map(coords, "x_names", ["fixed_x_names"]),
-# "ix_ex_to_x": make_index_map(coords, "x_names", ["exchange"]),
-# "ix_met_to_x": make_index_map(coords, "x_names", ["metabolite"]),
-# "ix_internal_to_rxn": make_index_map(coords, "reaction", ["internal_names"]),
-# "ix_ex_to_rxn": make_index_map(coords, "reaction", ["exchange"]),
-# "ix_free_met_to_met": make_index_map(coords, "metabolite", ["free_met_conc"]),
-# "ix_fixed_met_to_met": make_index_map(coords, "metabolite", ["fixed_met_conc"]),
-# "ix_free_ex_to_ex": make_index_map(coords, "exchange", ["exchange", "free_x_names"]),
-# "ix_fixed_ex_to_ex": make_index_map(coords, "exchange", ["exchange", "fixed_x_names"]),
-# "ix_free_row_to_met": make_index_map(coords, "metabolite", ["free_rows"]),
-# "ix_fixed_row_to_met": make_index_map(coords, "metabolite", ["fixed_rows"]),
-# # measurements
-# "N_condition": len(coords["condition"]),
-# "N_y_enzyme": len(measurements_by_type["enzyme"]),
-# "N_y_metabolite": len(measurements_by_type["mic"]),
-# "N_y_flux": len(measurements_by_type["flux"]),
-# "y_flux": measurements_by_type["flux"]["measurement"].values.tolist(),
-# "sigma_flux": measurements_by_type["flux"]["error_scale"].values.tolist(),
-# "reaction_y_flux": measurements_by_type["flux"]["target_id"].map(codify(coords["reaction"])).values.tolist(),
-# "condition_y_flux": measurements_by_type["flux"]["condition_id"].map(
-#     codify(coords["condition"])).values.tolist(),
-# # Concentrations given on a log scale
-# "y_enzyme": measurements_by_type["enzyme"]["measurement"].values.tolist(),
-# "sigma_enzyme": measurements_by_type["enzyme"]["error_scale"].values.tolist(),
-# "internal_y_enzyme": measurements_by_type["enzyme"]["target_id"].map(
-#     codify(coords["internal_names"])).values.tolist(),
-# "condition_y_enzyme": measurements_by_type["enzyme"]["condition_id"].map(
-#     codify(coords["condition"])).values.tolist(),
-# # Concentrations given on a log scale
-# "y_metabolite": measurements_by_type["mic"]["measurement"].values.tolist(),
-# "sigma_metabolite": measurements_by_type["mic"]["error_scale"].values.tolist(),
-# "metabolite_y_metabolite": measurements_by_type["mic"]["target_id"].map(
-#     codify(coords["metabolite"])).values.tolist(),
-# "condition_y_metabolite": measurements_by_type["mic"]["condition_id"].map(
-#     codify(coords["condition"])).values.tolist(),
-# # priors
-# "prior_dgf_mean": prior_dgf_mean.values.tolist(),
-# "prior_dgf_cov": priors_cov.values.tolist(),
-# "prior_exchange_free": [prior_exchange_free.location.values.tolist(),
-#                         prior_exchange_free.scale.values.tolist()],
-# "prior_enzyme": [prior_enzyme.location.values.tolist(), prior_enzyme.scale.values.tolist()],
-# "prior_b": [prior_b.location.values.tolist(), prior_b.scale.values.tolist()],
-# "prior_free_met_conc": [prior_met_conc_free.location.values.tolist(),
-#                         prior_met_conc_free.scale.values.tolist()],
 from src.pandas_to_cmdstanpy import get_coords_condition_list
 from src.util import ind_to_mask
 
@@ -112,21 +59,21 @@ def generate_data(stan_input: dict, S_df: pd.DataFrame, samples_per_param=100, n
     parameter_measurements = []
     num_params_sampled = 0
     logger.info("Generating parameter samples")
-    # The dgf params are shared across all conditions and must be sampled first
-    dgf = np.random.multivariate_normal(stan_input["prior_dgf_mean"], stan_input["prior_dgf_cov"],
+    # The dgf0 params are shared across all conditions and must be sampled first
+    dgf0 = np.random.multivariate_normal(stan_input["prior_dgf0_mean"], stan_input["prior_dgf0_cov"],
                                         check_valid="raise")
     while num_params_sampled < num_conditions:
         logger.info(f"{num_params_sampled} of {num_conditions} conditions sampled")
         b, exchange_free, log_enzyme, log_met_conc_free = sample_free_params(stan_input)
         # Generate the data
         # Make the S_m matrix for solving the system of equations
-        dgr, flux, log_met_conc = determine_fixed_params(S, S_v_base, b, dgf, exchange_free, exchange_rxn_mask,
+        dgr, flux, log_met_conc = determine_fixed_params(S, S_v_base, b, dgf0, exchange_free, exchange_rxn_mask,
                                                          exchange_x_mask, fixed_met_mask, fixed_x_mask, free_met_mask,
                                                          free_x_mask, log_enzyme, log_met_conc_free, free_row_mask,
                                                          nmet,
                                                          nx)
         param_dict = {"b": b, "dgr": dgr, "flux": flux, "log_met_conc": log_met_conc, "log_enzyme": log_enzyme,
-                      "dgf": dgf}
+                      "dgf0": dgf0}
         if bounds is not None and check_out_of_bounds(bounds, param_dict):
             continue
         # Sample measurements from these parameters
@@ -140,7 +87,7 @@ def generate_data(stan_input: dict, S_df: pd.DataFrame, samples_per_param=100, n
         # Combine them together
         measurement_df = pd.concat([flux_measurement_df, log_met_measurement_df, enzyme_measurement_df], axis=1)
         # Add the parameters
-        param_df, param_index = make_param_df(b, coords, dgf, dgr, flux, log_enzyme, log_met_conc)
+        param_df, param_index = make_param_df(b, coords, dgf0, dgr, flux, log_enzyme, log_met_conc)
         # Now combine the two
         repeated_params = pd.concat([param_df] * samples_per_param)
         repeated_params.index = measurement_df.index
@@ -180,17 +127,17 @@ def check_out_of_bounds(var_bounds: dict, param_dict: dict):
     return False
 
 
-def make_param_df(b, coords, dgf, dgr, flux, log_enzyme, log_met_conc):
+def make_param_df(b, coords, dgf0, dgr, flux, log_enzyme, log_met_conc):
     param_flux_tuples = list(zip(itertools.cycle(["P"]), itertools.cycle(["flux"]), coords["reaction_ind"]))
     param_dgr_tuples = list(zip(itertools.cycle(["P"]), itertools.cycle(["dgr"]), coords["internal_names"]))
     param_b_tuples = list(zip(itertools.cycle(["P"]), itertools.cycle(["b"]), coords["internal_names"]))
     param_log_enzyme_tuples = list(zip(itertools.cycle(["P"]), itertools.cycle(["enzyme"]), coords["internal_names"]))
-    param_dgf_tuples = list(zip(itertools.cycle(["P"]), itertools.cycle(["dgf"]), coords["metabolite_ind"]))
+    param_dgf0_tuples = list(zip(itertools.cycle(["P"]), itertools.cycle(["dgf0"]), coords["metabolite_ind"]))
     param_met_conc_tuples = list(zip(itertools.cycle(["P"]), itertools.cycle(["mic"]), coords["metabolite_ind"]))
     param_index = pd.MultiIndex.from_tuples(param_flux_tuples + param_dgr_tuples + param_b_tuples +
-                                            param_log_enzyme_tuples + param_dgf_tuples + param_met_conc_tuples,
+                                            param_log_enzyme_tuples + param_dgf0_tuples + param_met_conc_tuples,
                                             names=["type", "measurement_type", "target_id"])
-    param_df = pd.DataFrame(np.concatenate([flux, dgr, b, log_enzyme, dgf, log_met_conc]), index=param_index).T
+    param_df = pd.DataFrame(np.concatenate([flux, dgr, b, log_enzyme, dgf0, log_met_conc]), index=param_index).T
     return param_df, param_index
 
 
@@ -211,7 +158,7 @@ def sample_measurements(flux, log_enzyme, log_met_conc, samples_per_param):
 
 
 # NOTE: Could probably be refactored
-def determine_fixed_params(S, S_v_base, b, dgf, exchange_free, exchange_rxn_mask, exchange_x_mask, fixed_met_mask,
+def determine_fixed_params(S, S_v_base, b, dgf0, exchange_free, exchange_rxn_mask, exchange_x_mask, fixed_met_mask,
                            fixed_x_mask, free_met_mask, free_x_mask, log_enzyme, log_met_conc_free, free_row_mask, nmet,
                            nx):
     S_v = S_v_base.copy()
@@ -220,7 +167,7 @@ def determine_fixed_params(S, S_v_base, b, dgf, exchange_free, exchange_rxn_mask
                                                                            np.newaxis]))  # These need to be column vectors for numpy broadcasting
     S_m = S @ S_v
     x = np.zeros(nx)
-    x[free_x_mask & ~exchange_x_mask] = dgf[free_met_mask] + RT * log_met_conc_free
+    x[free_x_mask & ~exchange_x_mask] = dgf0[free_met_mask] + RT * log_met_conc_free
     x[free_x_mask & exchange_x_mask] = exchange_free
     # Now solve for the fixed values
     rhs = -S_m[free_row_mask][:, free_x_mask] @ x[free_x_mask]
@@ -231,8 +178,8 @@ def determine_fixed_params(S, S_v_base, b, dgf, exchange_free, exchange_rxn_mask
     assert np.allclose(S @ flux, 0, atol=1e-4) and np.allclose(S_m @ x, 0, atol=1e-4), "Steady state should hold"
     log_met_conc = np.zeros(nmet)
     log_met_conc[free_met_mask] = log_met_conc_free
-    log_met_conc[fixed_met_mask] = (x[fixed_x_mask & ~exchange_x_mask] - dgf[fixed_met_mask]) / RT
-    dgr = S[:, ~exchange_rxn_mask].T @ (dgf + RT * log_met_conc)
+    log_met_conc[fixed_met_mask] = (x[fixed_x_mask & ~exchange_x_mask] - dgf0[fixed_met_mask]) / RT
+    dgr = S[:, ~exchange_rxn_mask].T @ (dgf0 + RT * log_met_conc)
     assert (dgr * flux[~exchange_rxn_mask] <= 0).all(), "Fluxes should have the opposite sign to the dgr"
     assert np.allclose(flux[~exchange_rxn_mask],
                        -dgr * np.exp(b) * np.exp(log_enzyme),
@@ -245,13 +192,18 @@ def sample_free_params(stan_input, scale_divisor=5):
     # samples are accepted
     # Assumes a single condition
     # NOTE: It might be worth checking here that the priors across all conditions are the same
-    exchange_free = np.random.normal(stan_input["prior_exchange_free"][0][0],
-                                     np.array(stan_input["prior_exchange_free"][1][0]) / scale_divisor)
+    free_exchange_ix = np.array(stan_input["ix_free_ex_to_ex"], dtype=int) - 1
+    free_exchange_rxn_ix = np.array(stan_input["ix_ex_to_rxn"])[free_exchange_ix] - 1
+    free_exchange_prior_mean = np.array(stan_input["prior_exchange"][0][0])[free_exchange_rxn_ix]
+    free_exchange_prior_scale = np.array(stan_input["prior_exchange"][1][0])[free_exchange_rxn_ix] / scale_divisor
+    exchange_free = np.random.normal(free_exchange_prior_mean, free_exchange_prior_scale)
     b = np.random.normal(stan_input["prior_b"][0][0], np.array(stan_input["prior_b"][1][0]) / scale_divisor)
     log_enzyme = np.random.normal(stan_input["prior_enzyme"][0][0],
                                   np.array(stan_input["prior_enzyme"][1][0]) / scale_divisor)
-    log_met_conc_free = np.random.normal(stan_input["prior_free_met_conc"][0][0],
-                                         np.array(stan_input["prior_free_met_conc"][1][0]) / scale_divisor)
+    free_mets = np.array(stan_input["ix_free_met_to_met"], dtype=int) - 1
+    free_mets_prior_mean = np.array(stan_input["prior_met_conc"][0][0])[free_mets]
+    free_mets_prior_scale = np.array(stan_input["prior_met_conc"][1][0])[free_mets] / scale_divisor
+    log_met_conc_free = np.random.normal(free_mets_prior_mean, free_mets_prior_scale)
     return b, exchange_free, log_enzyme, log_met_conc_free
 
 

@@ -7,8 +7,8 @@ src/stan/*
 !src/stan/*.stan
 !src/stan/*.md
 # Venv
-/venv/bin/
-/venv/
+venv/bin/
+venv/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

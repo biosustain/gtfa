@@ -1,7 +1,7 @@
 parameter,target_id,condition_id,loc,scale
-dgf,f6p_c,,-1284.6152106568757
-dgf,g6p_c,,-1279.439546635153
-dgf,f1p_c,,-1283.442840824178
-dgf,g1p_c,,-1280.1858372424886
+dgf0,f6p_c,,-1284.6152106568757
+dgf0,g6p_c,,-1279.439546635153
+dgf0,f1p_c,,-1283.442840824178
+dgf0,g1p_c,,-1280.1858372424886
 enzyme,A,condition_1,-8,2
 enzyme,B,condition_1,-8,2

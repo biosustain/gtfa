@@ -7,12 +7,12 @@ likelihood = false
 devel = false
 analyse = false
 [sample_kwargs]
-chains = 2
-parallel_chains = 2
-sig_figs = 18
+chains = 4
+parallel_chains = 4
+sig_figs = 6
 show_progress = true
-iter_warmup = 10
-iter_sampling = 10
+iter_warmup = 3500
+iter_sampling = 200
 max_treedepth = 12
 adapt_delta = 0.90
 refresh = 1

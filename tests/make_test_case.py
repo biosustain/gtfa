@@ -21,9 +21,9 @@ def namevec(name, vec):
     return [f"{name}_{i}" for i in range(len(vec))]
 
 
-def calc_internal_fluxes(s_gamma, e, b, dgf, c):
+def calc_internal_fluxes(s_gamma, e, b, dgf0, c):
     """ From a set of parameters, calculate the fluxes"""
-    dgr = s_gamma.T @ (dgf + RT * np.log(c))
+    dgr = s_gamma.T @ (dgf0 + RT * np.log(c))
     return dgr.multiply(b * e, axis=0)
 
 
@@ -43,7 +43,7 @@ def get_s_c(S, b, e, exchange_rxns):
     return S.values @ s_x
 
 
-def calc_fixed(S, b, e, c_free, t_free, dgf, free_vars):
+def calc_fixed(S, b, e, c_free, t_free, dgf0, free_vars):
     """
     Calculate all fixed parameters from the free parameters
     """
@@ -66,7 +66,7 @@ def calc_fixed(S, b, e, c_free, t_free, dgf, free_vars):
     x = np.full(num_x, np.NAN)
     assert len(c_free) == free_c_mask.sum(), "The number of free c must be correct"
     assert len(t_free) == free_vars[~conc_x].sum(), "The number of free t must be correct"
-    x[conc_x & free_vars] = dgf[free_c_mask] + RT * c_free
+    x[conc_x & free_vars] = dgf0[free_c_mask] + RT * c_free
     x[~conc_x & free_vars] = t_free
     rhs = -s_c[:, free_vars] @ x[free_vars]
     # Determine the corresponding fixed variables
@@ -74,22 +74,22 @@ def calc_fixed(S, b, e, c_free, t_free, dgf, free_vars):
     # Back-calculate all the fixed variables
     c = np.zeros(num_mets)
     c[free_c_mask] = c_free  # The concentration vars of the fixed variables
-    c[fixed_c_mask] = (x[~free_vars & conc_x] - dgf[fixed_c_mask]) / RT
+    c[fixed_c_mask] = (x[~free_vars & conc_x] - dgf0[fixed_c_mask]) / RT
     # Calculate the fluxes
     # Exchange fluxes
     v = s_x @ x
-    check_fluxes(S, b, c, conc_x, dgf, e, exchange_rxns, num_rxns, s_c, s_x, x)
+    check_fluxes(S, b, c, conc_x, dgf0, e, exchange_rxns, num_rxns, s_c, s_x, x)
     return v, c
 
 
-def check_fluxes(S, b, c, conc_x, dgf, e, exchange_rxns, num_rxns, s_c, s_x, x):
+def check_fluxes(S, b, c, conc_x, dgf0, e, exchange_rxns, num_rxns, s_c, s_x, x):
     # Check the s_x matrix
     assert all(S @ s_x @ x < 1e-10), "All conc changes should be approximately 0"
     # Check the s_c matrix
     assert all(s_c @ x < 1e-10), "All conc changes should be approximately 0"
     # Check the standard calculation
     test_v = np.zeros(num_rxns)
-    dgr = S.T[~exchange_rxns] @ (dgf + RT * c)
+    dgr = S.T[~exchange_rxns] @ (dgf0 + RT * c)
     test_v[~exchange_rxns] = dgr * b * e
     test_v[exchange_rxns] = x[~conc_x]
     assert all(S @ test_v < 1e-10)
@@ -107,7 +107,7 @@ def find_params(temp_dir):
     s_c = get_s_c(S, np.ones(n_internal), np.ones(n_internal), exchange_rxns)
     free_vars, _ = get_free_fluxes(np.flip(s_c, axis=1))
     free_vars = np.flip(free_vars)
-    dgf = pd.read_csv(temp_dir / "priors.csv", index_col=1)["loc"]
+    dgf0 = pd.read_csv(temp_dir / "priors.csv", index_col=1)["loc"]
     exchange_rxns = S.columns.str.contains("SK_") | S.columns.str.contains("EX_")
     n_internal = (~exchange_rxns).sum()
     params = []
@@ -116,17 +116,17 @@ def find_params(temp_dir):
         t_free = np.array([1])
         b = np.exp(np.random.randn(n_internal) * 3 + 3)
         e = np.exp(np.random.randn(n_internal) * 2 - 8)
-        v, c = calc_fixed(S, b, e, np.log(c_free), t_free, dgf, free_vars)
-        dgr = S.loc[:, ~exchange_rxns].T @ (dgf + RT * c)
+        v, c = calc_fixed(S, b, e, np.log(c_free), t_free, dgf0, free_vars)
+        dgr = S.loc[:, ~exchange_rxns].T @ (dgf0 + RT * c)
         # Check for reasonable values of all parameters (including the fixed params)
         c_range = (c > -11) & (c < -5)
         b_range = (np.log(b) > -4) & (np.log(b) < 8)
         e_range = (np.log(e) > -11) & (np.log(e) < -5)
         if all(c_range) and all(b_range) & all(e_range):
-            param = chain.from_iterable([dgf, c, b, e, v, dgr])
+            param = chain.from_iterable([dgf0, c, b, e, v, dgr])
             params.append(param)
     columns = chain.from_iterable(
-        [namevec("dgf", dgf), namevec("c", c), namevec("b", b), namevec("e", e), namevec("v", v),
+        [namevec("dgf0", dgf0), namevec("c", c), namevec("b", b), namevec("e", e), namevec("v", v),
          namevec("dgr", dgr)])
     return pd.DataFrame(params, columns=list(columns))
 
