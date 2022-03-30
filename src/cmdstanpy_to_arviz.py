@@ -21,7 +21,8 @@ def get_infd_kwargs(
             # Free parameters
             "b": ["condition", "internal_names"],
             "log_enzyme": ["condition", "internal_names"],
-            "dgf": ["metabolite"],
+            "dgf0": ["metabolite"],
+            "dgf": ["condition", "metabolite"],
             # Fixed parameters
             "dgr": ["condition", "internal_names"],
             "flux": ["condition", "reaction"],

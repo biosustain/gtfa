@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 cc = ComponentContribution()
 
 
-def calc_model_dgfs_with_prediction_error(model):
+def calc_model_dgf0s_with_prediction_error(model):
     """
     With the given predictor, calculate the formation energies of all metabolites in the model.
 
@@ -30,11 +30,11 @@ def calc_model_dgfs_with_prediction_error(model):
         raise NotImplementedError("The model contains duplicate compounds (perhaps internal and external metabolites). "
                                   "This is not currently supported")
     # A dataframe with the manually calculated group decompositions
-    dgf_means, dgf_cov, met_groups, missing_estimates = get_cov_eq(compound_ids, compound_list)
+    dgf0_means, dgf0_cov, met_groups, missing_estimates = get_cov_eq(compound_ids, compound_list)
     # Add the legendre transform to the formation energies for the different compartments
     if hasattr(model, "compartment_conditions"):
         adjustment = calculate_legendre_transform(compound_ids, compound_list, model)
-        dgf_means += adjustment
+        dgf0_means += adjustment
     else:
         logger.warning("No compartment conditions found in the model. The legendre transform were not applied")
     # Add the prediction error to compounds outside the training set that were estimated with the gc method
@@ -46,13 +46,13 @@ def calc_model_dgfs_with_prediction_error(model):
     none_mets = ~met_groups.any(axis=1)
     assert (none_mets | np.logical_xor(cc_mets,
                                        gc_mets)).all(), "The metabolites should either be in the cc or gc group"
-    dgf_cov.loc[cc_mets, cc_mets] += np.diag(np.full(cc_mets.sum(), MSE_rc))
-    dgf_cov.loc[gc_mets, gc_mets] += np.diag(np.full(gc_mets.sum(), MSE_gc))
+    dgf0_cov.loc[cc_mets, cc_mets] += np.diag(np.full(cc_mets.sum(), MSE_rc))
+    dgf0_cov.loc[gc_mets, gc_mets] += np.diag(np.full(gc_mets.sum(), MSE_gc))
     # Add the variances of the missing values
     missing_estimates = np.array(missing_estimates, dtype=int)
     mse_inf = cc.predictor.preprocess.RMSE_inf ** 2
-    dgf_cov.iloc[missing_estimates, missing_estimates] = np.diag(np.full(len(missing_estimates), mse_inf))
-    return dgf_means, dgf_cov
+    dgf0_cov.iloc[missing_estimates, missing_estimates] = np.diag(np.full(len(missing_estimates), mse_inf))
+    return dgf0_means, dgf0_cov
 
 
 def calculate_legendre_transform(compound_ids, compound_list, model):
@@ -79,12 +79,12 @@ def get_cov_eq(compound_ids, compound_list):
     # hand-calculated compounds
     compound_Lc = cc.predictor.preprocess.L_c @ compound_vectors.T
     compound_Linf = cc.predictor.preprocess.L_inf @ compound_vectors.T
-    dgf_cov_mat = compound_Lc.T @ compound_Lc + cc.predictor.preprocess.RMSE_inf * compound_Linf.T @ compound_Linf
-    dgf_means = cc.predictor.preprocess.mu @ compound_vectors.T
+    dgf0_cov_mat = compound_Lc.T @ compound_Lc + cc.predictor.preprocess.RMSE_inf * compound_Linf.T @ compound_Linf
+    dgf0_means = cc.predictor.preprocess.mu @ compound_vectors.T
     # Convert to pandas
-    dgf_cov_mat = pd.DataFrame(dgf_cov_mat, index=compound_ids, columns=compound_ids)
-    dgf_means = pd.Series(dgf_means, index=compound_ids)
-    return dgf_means, dgf_cov_mat, compound_vectors, missing_estimates
+    dgf0_cov_mat = pd.DataFrame(dgf0_cov_mat, index=compound_ids, columns=compound_ids)
+    dgf0_means = pd.Series(dgf0_means, index=compound_ids)
+    return dgf0_means, dgf0_cov_mat, compound_vectors, missing_estimates
 
 
 def get_group_matrix(compound_ids, compound_list):
@@ -102,7 +102,7 @@ def get_group_matrix(compound_ids, compound_list):
         c_id = compound_ids[i]
         # This is quite fragile
         if c_id[:-2] in exception_list.index:
-            logger.info(f"Compound {c_id} is in the list of exceptions and has a dgf and variance of 0")
+            logger.info(f"Compound {c_id} is in the list of exceptions and has a dgf0 and variance of 0")
             c_groups = np.zeros(n_groups)
         else:
             c_groups = get_groups(c, c_id, man_group_df)

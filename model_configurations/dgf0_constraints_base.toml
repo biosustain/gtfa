@@ -1,0 +1,18 @@
+name = "dgf0_constraints_base"
+stan_file = "../src/stan/model_conc.stan"
+data_folder = "../data/raw/toy_model_single_condition"
+likelihood = true
+analyse = false
+devel = false
+save_plot = true
+
+[sample_kwargs]
+chains = 4
+parallel_chains = 4
+sig_figs = 6
+show_progress = true
+iter_warmup = 3000
+iter_sampling = 200
+max_treedepth = 12
+adapt_delta = 0.95
+refresh = 1

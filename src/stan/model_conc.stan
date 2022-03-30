@@ -1,8 +1,8 @@
 functions {
-  vector get_dgr(vector dgf, vector log_metabolite, matrix s_intern){
+  vector get_dgr(vector dgf0, vector log_metabolite, matrix s_intern){
     /* Get delta G of reaction for each reaction. */
     real RT = 0.008314 * 298.15;
-    return s_intern' * (dgf + RT * log_metabolite);
+    return s_intern' * (dgf0 + RT * log_metabolite);
   }
 }
 data {
@@ -74,8 +74,8 @@ data {
   array[N_y_metabolite] int<lower=1,upper=N_condition> condition_y_metabolite;
 
   //// priors
-  vector[N_metabolite] prior_dgf_mean;
-  matrix[N_metabolite, N_metabolite] prior_dgf_cov;
+  vector[N_metabolite] prior_dgf0_mean;
+  matrix[N_metabolite, N_metabolite] prior_dgf0_cov;
   array[2, N_condition] vector[N_exchange] prior_exchange;
   array[2, N_condition] vector[N_internal] prior_enzyme;
   array[2, N_condition] vector[N_internal] prior_b;
@@ -97,7 +97,7 @@ transformed data {
 }
 
 parameters {
-  vector[N_metabolite] dgf_ctd;
+  vector[N_metabolite] dgf0_ctd;
   array[N_condition] vector[N_internal] b;
   array[N_condition] vector[N_internal] log_enzyme;
   array[N_condition] vector[N_free_met_conc] log_metabolite_free;
@@ -109,8 +109,8 @@ transformed parameters {
   array[N_condition] vector[N_reaction] flux;
   array[N_condition] vector[N_metabolite] log_metabolite;
   array[N_condition] vector[N_x] x;
-  // Recenter the dgf
-  vector[N_metabolite] dgf = dgf_ctd + prior_dgf_mean;
+  // Recenter the dgf0
+  vector[N_metabolite] dgf0 = dgf0_ctd + prior_dgf0_mean;
   //
   for (cond in 1:N_condition){
     real RT = 0.008314 * 298.15;
@@ -127,7 +127,7 @@ transformed parameters {
     if (N_free_exchange > 0){
         x[cond][ix_free_ex_to_x] = exchange_free[cond];
     }
-    x[cond][ix_free_met_to_x] = dgf[ix_free_met_to_met] + RT * log_metabolite_free[cond];
+    x[cond][ix_free_met_to_x] = dgf0[ix_free_met_to_met] + RT * log_metabolite_free[cond];
     rhs = -s_c[ix_free_row_to_met, ix_free_to_x] * x[cond][ix_free_to_x];
     x[cond][ix_fixed_to_x] = s_c[ix_free_row_to_met, ix_fixed_to_x] \ rhs;
     for (i in ix_fixed_to_x){
@@ -138,9 +138,9 @@ transformed parameters {
     // Solve for the remaining log metabolite values
     log_metabolite[cond, ix_free_met_to_met] = log_metabolite_free[cond];
     log_metabolite[cond, ix_fixed_met_to_met] = (x[cond][ix_fixed_met_to_x] -
-        dgf[ix_fixed_met_to_met]) ./ RT;
+        dgf0[ix_fixed_met_to_met]) ./ RT;
     // Calculate the dgr
-    dgr[cond] = get_dgr(dgf, log_metabolite[cond], S[:, ix_internal_to_rxn]);
+    dgr[cond] = get_dgr(dgf0, log_metabolite[cond], S[:, ix_internal_to_rxn]);
     // Calculate the fluxes
     flux[cond][ix_internal_to_rxn] = -dgr[cond] .* exp(b[cond]) .* exp(log_enzyme[cond]);
     // Add the fixed and free exchange reactions
@@ -149,8 +149,8 @@ transformed parameters {
 }
 model {
   //// Priors
-  // Dgf
-  dgf_ctd ~ multi_normal(rep_vector(0, N_metabolite), prior_dgf_cov);
+  // dgf0
+  dgf0_ctd ~ multi_normal(rep_vector(0, N_metabolite), prior_dgf0_cov);
   for (c in 1:N_condition){
     b[c] ~ normal(prior_b[1, c], prior_b[2, c]);
     log_enzyme[c] ~ normal(prior_enzyme[1, c], prior_enzyme[2, c]);
@@ -179,8 +179,13 @@ model {
 }
 
 generated quantities {
+  // The dgf can also be useful to know
+  array[N_condition] vector[N_metabolite] dgf;
+  for (cond in 1:N_condition){
+    real RT = 0.008314 * 298.15;
+    dgf[cond] = dgf0 + RT * log_metabolite[cond];
+  }
   // Check that the fluxes follow steady-state
-
   // Replace the below with warning messages
   {
     vector[N_metabolite] conc_change;

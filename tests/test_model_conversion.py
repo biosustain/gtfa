@@ -9,7 +9,7 @@ import pytest
 import scipy
 from cobra.util.array import create_stoichiometric_matrix
 
-from src.dgf_estimation import calc_model_dgfs_with_prediction_error
+from src.dgf0_estimation import calc_model_dgf0s_with_prediction_error
 from src.fitting import generate_samples, stan_input_from_dir
 from src.model_configuration import load_model_configuration
 from src.model_conversion import write_gollub2020_models, get_compartment_conditions, write_model_files
@@ -31,29 +31,29 @@ def test_model_writing(ecoli_model):
     assert all(model_s[:, 0] == S["PFK"])
     assert ecoli_model.reactions[70].id == 'FUMt2_2'
     assert all(model_s[:, 70] == S['FUMt2_2'])
-    # Check the dgf priors
+    # Check the dgf0 priors
     priors = pd.read_csv(temp_dir / "priors.csv")
-    calc_dgf_mean, calc_dgf_cov = calc_model_dgfs_with_prediction_error(ecoli_model)
-    for rownum, row in priors[priors["parameter"] == "dgf"].iterrows():
+    calc_dgf0_mean, calc_dgf0_cov = calc_model_dgf0s_with_prediction_error(ecoli_model)
+    for rownum, row in priors[priors["parameter"] == "dgf0"].iterrows():
         id = row["target_id"]
-        assert row["loc"] == pytest.approx(calc_dgf_mean[id])
+        assert row["loc"] == pytest.approx(calc_dgf0_mean[id])
     # Test the covariance matrix
     file_cov = pd.read_csv(temp_dir / "priors_cov.csv", index_col=0)
-    np.testing.assert_array_almost_equal(calc_dgf_cov, file_cov.to_numpy())
+    np.testing.assert_array_almost_equal(calc_dgf0_cov, file_cov.to_numpy())
 
 
 def test_model_writing_small(model_small):
     # Add the test dir
     temp_dir = Path("temp_dir")
-    # Check the dgf priors
+    # Check the dgf0 priors
     priors = pd.read_csv(temp_dir / "priors.csv")
-    calc_dgf_mean, calc_dgf_cov = calc_model_dgfs_with_prediction_error(model_small)
-    for rownum, row in priors[priors["parameter"] == "dgf"].iterrows():
+    calc_dgf0_mean, calc_dgf0_cov = calc_model_dgf0s_with_prediction_error(model_small)
+    for rownum, row in priors[priors["parameter"] == "dgf0"].iterrows():
         id = row["target_id"]
-        assert row["loc"] == pytest.approx(calc_dgf_mean[id])
+        assert row["loc"] == pytest.approx(calc_dgf0_mean[id])
     # Test the covariance matrix
     file_cov = pd.read_csv(temp_dir / "priors_cov.csv", index_col=0)
-    np.testing.assert_array_almost_equal(calc_dgf_cov, file_cov.to_numpy())
+    np.testing.assert_array_almost_equal(calc_dgf0_cov, file_cov.to_numpy())
 
 
 def test_small_model_prior(model_small):
@@ -67,13 +67,13 @@ def test_small_model_prior(model_small):
     generate_samples(config)
     # Check results files
     priors = pd.read_csv(temp_dir / "priors.csv")
-    calc_dgf_mean, calc_dgf_cov = calc_model_dgfs_with_prediction_error(model_small)
-    for rownum, row in priors[priors["parameter"] == "dgf"].iterrows():
+    calc_dgf0_mean, calc_dgf0_cov = calc_model_dgf0s_with_prediction_error(model_small)
+    for rownum, row in priors[priors["parameter"] == "dgf0"].iterrows():
         id = row["target_id"]
-        assert row["loc"] == pytest.approx(calc_dgf_mean[id])
+        assert row["loc"] == pytest.approx(calc_dgf0_mean[id])
     # Test the covariance matrix
     file_cov = pd.read_csv(temp_dir / "priors_cov.csv", index_col=0)
-    np.testing.assert_array_almost_equal(calc_dgf_cov, file_cov.to_numpy())
+    np.testing.assert_array_almost_equal(calc_dgf0_cov, file_cov.to_numpy())
 
 
 def test_excluded_reactions_single(model_small):
@@ -84,8 +84,8 @@ def test_excluded_reactions_single(model_small):
     assert stan_input["N_exchange"] == 2, "Standard transport reaciton"
     # Write the files again
     S = pd.read_csv(temp_dir / "stoichiometry.csv", index_col="metabolite") # Nothing changes about the stoichiometry
-    dgf_means, dgf_cov_mat = calc_model_dgfs_with_prediction_error(model_small)
-    write_model_files(temp_dir, S, dgf_means, dgf_cov_mat, exclude_list=["g6p/g1p"])
+    dgf0_means, dgf0_cov_mat = calc_model_dgf0s_with_prediction_error(model_small)
+    write_model_files(temp_dir, S, dgf0_means, dgf0_cov_mat, exclude_list=["g6p/g1p"])
     stan_input = stan_input_from_dir(temp_dir)
     # Test the expected input
     assert stan_input["N_exchange"] == 3, "Expect extra transport reaction"
@@ -114,10 +114,10 @@ def test_gollub_files_read_singles(temp_dir):
         true_s = create_stoichiometric_matrix(model)
         true_s = pd.DataFrame(true_s, index=[m.id for m in model.metabolites], columns=[r.id for r in model.reactions])
         pd.testing.assert_frame_equal(true_s, stoichiometry, check_names=False)
-        # The dgf priors should match
+        # The dgf0 priors should match
         priors = pd.read_csv(temp_dir / "priors.csv", index_col=1)
-        exp_dgf0_mean, exp_dgf0_cov = calc_model_dgfs_with_prediction_error(model)
-        real_dgf0_mean = priors.loc[priors["parameter"] == "dgf", "loc"]
+        exp_dgf0_mean, exp_dgf0_cov = calc_model_dgf0s_with_prediction_error(model)
+        real_dgf0_mean = priors.loc[priors["parameter"] == "dgf0", "loc"]
         real_priors_cov = pd.read_csv(temp_dir / "priors_cov.csv", index_col=0)
         pd.testing.assert_series_equal(exp_dgf0_mean, real_dgf0_mean, check_names=False)
         pd.testing.assert_frame_equal(exp_dgf0_cov, real_priors_cov, check_names=False)

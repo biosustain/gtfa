@@ -7,7 +7,7 @@ import pandas as pd
 import scipy
 
 from src import util
-from src.dgf_estimation import calc_model_dgfs_with_prediction_error
+from src.dgf0_estimation import calc_model_dgf0s_with_prediction_error
 
 PROTON_INCHI = "InChI=1S/p+1"
 
@@ -24,8 +24,8 @@ def write_gollub2020_models(mat_files: [pathlib.Path], model_dir: pathlib.Path):
     assert len(mat_files) > 0, "No mat files provided"
     # Get the condition names
     condition_names = [path.stem.split("2015_")[1] for path in mat_files]
-    dgf_means = []
-    dgf_covs = []
+    dgf0_means = []
+    dgf0_covs = []
     met_conc_means = []
     log_conc_sd = []
     stoichiometric_matrices = []
@@ -45,10 +45,10 @@ def write_gollub2020_models(mat_files: [pathlib.Path], model_dir: pathlib.Path):
         # Convert to a pandas dataframe
         S_df = util.get_smat_df(model)
         stoichiometric_matrices.append(S_df)
-        # Get the dgf means
-        dgfs, dgf_cov = calc_model_dgfs_with_prediction_error(model)
-        dgf_means.append(dgfs)
-        dgf_covs.append(dgf_cov)
+        # Get the dgf0 means
+        dgf0s, dgf0_cov = calc_model_dgf0s_with_prediction_error(model)
+        dgf0_means.append(dgf0s)
+        dgf0_covs.append(dgf0_cov)
         # Get the log concentration means
         log_conc_means = model_struct["model"]["logConcMean"][0, 0].flatten()
         met_conc_means.append(log_conc_means)
@@ -57,19 +57,19 @@ def write_gollub2020_models(mat_files: [pathlib.Path], model_dir: pathlib.Path):
         assert np.allclose(log_conc_cov, np.diag(np.diag(log_conc_cov))), "Log concentration covariance matrix should be diagonal"
         # Get the diagonal of the matrix
         log_conc_sd.append(np.sqrt(np.diag(log_conc_cov)))
-    # Check that the dgf priors are the same for all conditions
-    assert all(len(dgfs) == len(dgf_means[0]) for dgfs in dgf_means) and \
-           all(np.allclose(dgf_means[0], dgf_means[i]) for i in range(1, len(dgf_means)))
+    # Check that the dgf0 priors are the same for all conditions
+    assert all(len(dgf0s) == len(dgf0_means[0]) for dgf0s in dgf0_means) and \
+           all(np.allclose(dgf0_means[0], dgf0_means[i]) for i in range(1, len(dgf0_means)))
     # Check that the covariance matrices are the same for all conditions
-    assert all(dgfs.shape[0] == dgf_means[0].shape[0] for dgfs in dgf_means) and \
-           all(np.allclose(dgf_covs[0], dgf_covs[i]) for i in range(1, len(dgf_covs)))
+    assert all(dgf0s.shape[0] == dgf0_means[0].shape[0] for dgf0s in dgf0_means) and \
+           all(np.allclose(dgf0_covs[0], dgf0_covs[i]) for i in range(1, len(dgf0_covs)))
     # All stoichiometric matrices should be the same
     assert all(np.allclose(stoichiometric_matrices[0], stoichiometric_matrices[i]) for i in
                range(1, len(stoichiometric_matrices)))
     # All exclude lists should be the same
     assert all(np.allclose(exclude_lists[0], exclude_lists[i]) for i in range(1, len(exclude_lists)))
     # Send the files for writing
-    write_model_files(model_dir, stoichiometric_matrices[0], dgf_means[0], dgf_covs[0], condition_names,
+    write_model_files(model_dir, stoichiometric_matrices[0], dgf0_means[0], dgf0_covs[0], condition_names,
                       met_conc_means, log_conc_sd, exclude_lists[0])
 
 
@@ -88,13 +88,13 @@ def get_compartment_conditions(model, model_struct):
         compartment_conditions.loc[m.compartment] = met_conditions
     return compartment_conditions
 
-def make_dgf_df(met_ids, dgf_means):
+def make_dgf0_df(met_ids, dgf0_means):
     # Write the enzyme concentration priors
     num_mets = len(met_ids)
     cols = ["parameter", "target_id", "condition_id", "loc", "scale"]
-    column_data = zip(["dgf"] * num_mets, met_ids, [""] * num_mets, dgf_means, [""] * num_mets)
-    dgf_df = pd.DataFrame(column_data, columns=cols)
-    return dgf_df
+    column_data = zip(["dgf0"] * num_mets, met_ids, [""] * num_mets, dgf0_means, [""] * num_mets)
+    dgf0_df = pd.DataFrame(column_data, columns=cols)
+    return dgf0_df
 
 
 def make_met_conc_df(met_ids, log_conc_means, log_met_sd, condition_name):
@@ -105,18 +105,18 @@ def make_met_conc_df(met_ids, log_conc_means, log_met_sd, condition_name):
     num_mets = len(log_conc_means)
     cols = ["measurement_type", "target_id", "condition_id", "measurement", "error_scale"]
     column_data = zip(["mic"] * num_mets, met_ids, [condition_name] * num_mets, log_conc_means, log_met_sd)
-    dgf_df = pd.DataFrame(column_data, columns=cols)
-    return dgf_df
+    dgf0_df = pd.DataFrame(column_data, columns=cols)
+    return dgf0_df
 
 
-def write_model_files(model_dir, S, dgf_means, dgf_cov_mat, conditions=None, log_conc_means=None, log_met_sd=None, exclude_list=None):
+def write_model_files(model_dir, S, dgf0_means, dgf0_cov_mat, conditions=None, log_conc_means=None, log_met_sd=None, exclude_list=None):
     # Check for excluded reactions
     if exclude_list is not None:
         S = modify_excluded(S, exclude_list)
     met_ids = S.index
-    cov = pd.DataFrame(dgf_cov_mat, columns=met_ids, index=met_ids)
-    dgf_df = make_dgf_df(met_ids, dgf_means)
-    dgf_df.to_csv(model_dir / "priors.csv", index=False)
+    cov = pd.DataFrame(dgf0_cov_mat, columns=met_ids, index=met_ids)
+    dgf0_df = make_dgf0_df(met_ids, dgf0_means)
+    dgf0_df.to_csv(model_dir / "priors.csv", index=False)
     S.to_csv(model_dir / "stoichiometry.csv")
     cov.to_csv(model_dir / "priors_cov.csv")
     if log_conc_means is not None:

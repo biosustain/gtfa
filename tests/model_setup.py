@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 from cobra import Model, Metabolite, Reaction
 
-from src.dgf_estimation import cc
+from src.dgf0_estimation import cc
 from src.pandas_to_cmdstanpy import DEFAULT_MET_CONC_MEAN, DEFAULT_MET_CONC_SCALE
 
 logger = logging.getLogger(__name__)
@@ -92,7 +92,7 @@ def build_small_test_model():
     return model
 
 
-# This test case doesn't produce a reduced rank dgf covaraince matrix
+# This test case doesn't produce a reduced rank dgf0 covaraince matrix
 def build_small_test_model_rankdef_thermo():
     """ From the example from Metabolic control theory: A structural approach
     https://doi.org/10.1016/S0022-5193(88)80073-0

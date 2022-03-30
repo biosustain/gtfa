@@ -31,9 +31,9 @@ def check_df(df, coords, S, eps=1e-2):
             # The internal and transport free fluxes should be present in the b vector
             # assert (bs[coords["transport_free"]] == transport_free).all(axis=None)
             dgrs = df.loc[:, (chain, "dgr", condition)]
-            dgfs = df.loc[:, (chain, "dgf", "shared")]
+            dgf0s = df.loc[:, (chain, "dgf0", "shared")]
             log_conc = df.loc[:, (chain, "log_metabolite", condition)]
-            pred_dgr = S.T @ (dgfs + R * T * log_conc).T
+            pred_dgr = S.T @ (dgf0s + R * T * log_conc).T
             assert ((dgrs.T - pred_dgr) < eps).all(axis=None), "dgrs should match"
         # Check the steady state assumpiton
         for condition in conditions:
