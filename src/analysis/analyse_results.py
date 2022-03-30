@@ -224,10 +224,11 @@ def generate_fixed_free_diagrams(save=True, display=False):
         df = pd.concat(d, axis=1)
         df.columns = comb_strs
         df.boxplot(ax=axs[i])
-        axs[i].set_title(f"{S.columns[j]}")
+        rxn_name = S.columns[j]
+        axs[i].set_title(f"{rxn_name}")
         for tick in axs[i].get_xticklabels():
             tick.set_rotation(90)
-            if S.index[i] in str(tick) and not ("_" + S.index[i]) in str(tick):
+            if rxn_name in str(tick):
                 tick.set_fontweight("bold")
     plt.tight_layout()
     if save:
