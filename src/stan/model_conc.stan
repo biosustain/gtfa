@@ -124,7 +124,7 @@ transformed parameters {
     mod_s = S;
     // This could be done with the left/right multiply function maybe?
     mod_s[:, ix_internal_to_rxn] = mod_s[:, ix_internal_to_rxn] .*
-        rep_matrix((exp(b[cond]) .* exp(log_enzyme[cond]))', N_metabolite);
+      rep_matrix((exp(b[cond]) .* exp(log_enzyme[cond]))', N_metabolite);
     s_c = mod_s * s_gamma;
     // Get a vector of the free values
     if (N_free_exchange > 0){
@@ -165,19 +165,19 @@ model {
   for (n in 1:N_y_metabolite){
     int c = condition_y_metabolite[n];
     int m = metabolite_y_metabolite[n];
-    y_metabolite[n] ~ normal(log_metabolite[c, m], sigma_metabolite[n]);
+    y_metabolite[n] ~ student_t(4, log_metabolite[c, m], sigma_metabolite[n]);
   }
   // Enzyme concentrations
   for (n in 1:N_y_enzyme){
     int c = condition_y_enzyme[n];
     int enz_ind = internal_y_enzyme[n];
-    y_enzyme[n] ~ normal(log_enzyme[c, enz_ind], sigma_enzyme[n]);
+    y_enzyme[n] ~ student_t(4, log_enzyme[c, enz_ind], sigma_enzyme[n]);
   }
   // Fluxes
   for (n in 1:N_y_flux){
     int c = condition_y_flux[n];
     int r = reaction_y_flux[n];
-    y_flux[n] ~ normal(flux[c, r], sigma_flux[n]);
+    y_flux[n] ~ student_t(4, flux[c, r], sigma_flux[n]);
   }
 }
 
